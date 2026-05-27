@@ -17,9 +17,12 @@ env/
 # Claude Code paramètres user-specific
 .claude/settings.local.json
 
-# Données générées (2.8 GB de modèles NFSP, replays, logs)
+# Données générées (modèles, replays, logs)
 # Ne sont PAS commités — re-générer via les scripts de training.
 data/nfsp_*/
+data/blueprint_hu/
+data/blueprint_3max/
+data/overnight/
 data/sessions/
 data/*.log
 data/*.pkl
