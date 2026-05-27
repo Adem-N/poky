@@ -1,0 +1,6 @@
+rlcard==1.2.0
+phevaluator==0.5.3.1
+numpy>=2.0
+torch>=2.0
+matplotlib>=3.10
+pytest>=9.0

@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Virtualenv (1.1 GB)
+.venv/
+venv/
+env/
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+
+# Claude Code paramètres user-specific
+.claude/settings.local.json
+
+# Données générées (2.8 GB de modèles NFSP, replays, logs)
+# Ne sont PAS commités — re-générer via les scripts de training.
+data/nfsp_*/
+data/sessions/
+data/*.log
+data/*.pkl
+data/*.ckpt
+data/*.npz
+
+# On garde data/ comme dossier vide via .gitkeep
+!data/.gitkeep
