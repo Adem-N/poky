@@ -106,8 +106,21 @@ class InfoSet:
 # ---- CFR -----------------------------------------------------------------
 
 class KuhnCFRTrainer:
-    def __init__(self):
+    """
+    Vanilla CFR (par défaut) ou **Linear CFR** (Brown & Sandholm 2019)
+    si `linear=True`. Linear CFR pondère les regrets et les stratégies
+    moyennes par l'itération t — converge typiquement **2-3× plus vite**
+    sans changement de garantie théorique.
+
+    Référence Linear CFR :
+      Brown & Sandholm 2019, "Solving Imperfect-Information Games via
+      Discounted Regret Minimization" (arXiv 1809.04040).
+    """
+
+    def __init__(self, linear: bool = False):
         self.info_sets: Dict[str, InfoSet] = {}
+        self.linear = linear
+        self._current_iter = 1  # mis à jour dans train()
 
     def _info_key(self, card: int, history: str) -> str:
         return f"{CARD_LABEL[card]}:{history}"
@@ -149,10 +162,13 @@ class KuhnCFRTrainer:
         opp_reach = reach_p2 if player == 0 else reach_p1
         own_reach = reach_p1 if player == 0 else reach_p2
         sign = 1.0 if player == 0 else -1.0
+        # Linear CFR : pondère par t l'incrément de regret ET de strategy_sum.
+        # Vanilla CFR : pondération uniforme (weight = 1).
+        weight = self._current_iter if self.linear else 1.0
         for i in range(len(actions)):
             regret = sign * (action_utils[i] - node_util)
-            info.regret_sum[i] += opp_reach * regret
-            info.strategy_sum[i] += own_reach * sigma[i]
+            info.regret_sum[i] += opp_reach * regret * weight
+            info.strategy_sum[i] += own_reach * sigma[i] * weight
 
         return node_util
 
@@ -165,6 +181,7 @@ class KuhnCFRTrainer:
         history_values = []
         cumulative = 0.0
         for it in range(1, iterations + 1):
+            self._current_iter = it
             iter_util = 0.0
             for c1 in CARDS:
                 for c2 in CARDS:
