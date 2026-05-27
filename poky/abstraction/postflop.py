@@ -36,7 +36,8 @@ from poky.equity.estimator import ALL_CARDS_PHEV
 NUM_BUCKETS = 5  # K par street
 DEFAULT_SAMPLES = 10_000           # mains random par street pour calibrer
 CALIBRATION_SIMULATIONS = 200      # MC sims pour chaque sample en calibration
-RUNTIME_SIMULATIONS = 100          # MC sims pour bucketer un nouvel état
+RUNTIME_SIMULATIONS = 60           # MC sims pour bucketer un nouvel état
+                                    # (réduit de 100 → 60 pour speedup ; déterministe car seed dérivé du hash)
 
 _CACHE_PATH = os.path.join(os.path.dirname(__file__),
                            "_postflop_buckets.json")
@@ -132,9 +133,10 @@ def _deterministic_rng(cards: Sequence[str]) -> random.Random:
     return random.Random(int(h, 16))
 
 
-# Cache en mémoire pour accélérer (MCCFR re-visite souvent les mêmes states)
+# Cache en mémoire pour accélérer (MCCFR re-visite souvent les mêmes states).
+# 5M entries × ~60 bytes ≈ 300MB RAM max. Fine sur laptop 16GB.
 _BUCKET_CACHE: dict = {}
-_BUCKET_CACHE_MAX = 100_000
+_BUCKET_CACHE_MAX = 5_000_000
 
 
 def _cached_bucket(hole: list, board: list, street: str,
