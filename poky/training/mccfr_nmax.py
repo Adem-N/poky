@@ -126,13 +126,19 @@ class NMaxMCCFRTrainer:
             child = state.apply(legal[idx])
             return self._traverse(child, deck_rest, traverser)
 
-    def train(self, iterations: int, log_every: int = 1000) -> List[int]:
+    def train(self, iterations: int, log_every: int = 1000,
+              save_every: Optional[int] = None,
+              save_path: Optional[str] = None) -> List[int]:
         history = []
         start = time.time()
         for it in range(1, iterations + 1):
-            traverser = it % self.num_players  # rotate over all N players
+            traverser = it % self.num_players
             state, deck_rest = deal_new_nmax(self.rng, self.num_players)
-            self._traverse(state, deck_rest, traverser)
+            try:
+                self._traverse(state, deck_rest, traverser)
+            except Exception as e:
+                print(f"  [WARN] it {it}: {type(e).__name__}: {e}", flush=True)
+                continue
             self.iterations_done += 1
             if it % log_every == 0:
                 elapsed = time.time() - start
@@ -140,6 +146,9 @@ class NMaxMCCFRTrainer:
                 history.append(len(self.regret_sum))
                 print(f"  it {it:>6} | {rate:>5.0f} it/s | "
                       f"info sets : {len(self.regret_sum):,}", flush=True)
+            if save_every and save_path and it % save_every == 0:
+                self.save(save_path)
+                print(f"  [checkpoint] saved at it {it}", flush=True)
         return history
 
     def average_strategy(self, key: bytes, legal_indices: List[int]) -> np.ndarray:
@@ -184,13 +193,21 @@ def main():
     parser.add_argument("--num-players", type=int, default=3)
     parser.add_argument("--iterations", type=int, default=10_000)
     parser.add_argument("--log-every", type=int, default=1000)
+    parser.add_argument("--save-every", type=int, default=None)
     parser.add_argument("--save-path", default="data/blueprint_3max/mvp.pkl")
+    parser.add_argument("--resume-from", default=None)
     args = parser.parse_args()
-    trainer = NMaxMCCFRTrainer(num_players=args.num_players)
-    print(f"Training {args.num_players}-max NLHE ES-MCCFR : {args.iterations} iters")
-    trainer.train(args.iterations, log_every=args.log_every)
+
+    if args.resume_from and os.path.exists(args.resume_from):
+        trainer = NMaxMCCFRTrainer.load(args.resume_from)
+        print(f"Resumed from {args.resume_from} (iter {trainer.iterations_done:,})")
+    else:
+        trainer = NMaxMCCFRTrainer(num_players=args.num_players)
+        print(f"Training {args.num_players}-max NLHE ES-MCCFR : {args.iterations} iters")
+    trainer.train(args.iterations, log_every=args.log_every,
+                  save_every=args.save_every, save_path=args.save_path)
     trainer.save(args.save_path)
-    print(f"\nSauvegarde : {args.save_path}")
+    print(f"\nSauvegarde finale : {args.save_path}")
     print(f"Total info sets : {len(trainer.regret_sum):,}")
 
 
