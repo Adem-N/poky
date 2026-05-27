@@ -100,20 +100,15 @@ class BlueprintPlayer(Player):
         key += hist_blob
         key_bytes = bytes(key)
 
-        # Lookup
+        # Lookup : table fixée à 5 entries indexées par Action enum value.
+        # On masque sur les legal_actions courantes, on renormalise.
         legal = obs.legal_actions
         num_actions = len(legal)
+        legal_indices = [int(a) for a in legal]
         if key_bytes in self.trainer.strategy_sum:
-            ss = self.trainer.strategy_sum[key_bytes]
-            # Si la taille de la stratégie sauvée matche les legal actions courantes,
-            # on l'utilise. Sinon (state space slightly diff), fallback.
-            if len(ss) == num_actions:
-                self._lookup_hits += 1
-                total = ss.sum()
-                if total > 0:
-                    avg = ss / total
-                else:
-                    avg = np.full(num_actions, 1.0 / num_actions, dtype=np.float32)
+            self._lookup_hits += 1
+            avg = self.trainer.average_strategy(key_bytes, legal_indices)
+            if avg.sum() > 0:
                 idx = self.rng.choices(range(num_actions),
                                        weights=avg.tolist())[0]
                 return legal[idx]

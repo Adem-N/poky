@@ -79,17 +79,26 @@ class HUNLMCCFRTrainer:
         self.rng = random.Random(seed)
         self.iterations_done = 0
 
-    def _get_strategy(self, key: bytes, num_actions: int) -> np.ndarray:
-        """Current strategy via regret matching. Crée l'entry si absente."""
+    def _get_strategy(self, key: bytes, legal_indices: List[int]) -> np.ndarray:
+        """Current strategy via regret matching. Toutes les tables sont de
+        taille fixe NUM_ABSTRACT_ACTIONS (5) — illegal actions ont weight 0.
+        Retourne un vecteur de taille len(legal_indices) (probabilités sur
+        les actions légales courantes, somme à 1)."""
         if key not in self.regret_sum:
-            self.regret_sum[key] = np.zeros(num_actions, dtype=np.float32)
-            self.strategy_sum[key] = np.zeros(num_actions, dtype=np.float32)
+            # Toujours alloue 5 entries
+            self.regret_sum[key] = np.zeros(NUM_ABSTRACT_ACTIONS, dtype=np.float32)
+            self.strategy_sum[key] = np.zeros(NUM_ABSTRACT_ACTIONS, dtype=np.float32)
         regrets = self.regret_sum[key]
-        positive = np.maximum(regrets, 0.0)
+        # Masque par actions légales courantes
+        positive = np.zeros(len(legal_indices), dtype=np.float32)
+        for i, ai in enumerate(legal_indices):
+            r = regrets[ai]
+            positive[i] = max(r, 0.0)
         total = positive.sum()
         if total > 0:
             return positive / total
-        return np.full(num_actions, 1.0 / num_actions, dtype=np.float32)
+        n = len(legal_indices)
+        return np.full(n, 1.0 / n, dtype=np.float32)
 
     def _maybe_reveal_board(self, state: HUNLState,
                             deck_rest: Tuple[str, ...]) -> HUNLState:
@@ -117,14 +126,14 @@ class HUNLMCCFRTrainer:
 
         actor = state.to_act
         legal = state.legal_actions()
-        num_actions = len(legal)
-        if num_actions == 0:
-            # ne devrait pas arriver, mais safe
+        if not legal:
             u = terminal_utility(state)
             return u[traverser]
+        legal_indices = [int(a) for a in legal]   # 0..4 per Action enum
+        num_actions = len(legal)
 
         key = state_infoset_key(state, actor)
-        sigma = self._get_strategy(key, num_actions)
+        sigma = self._get_strategy(key, legal_indices)   # array of len(legal)
 
         if actor == traverser:
             # Énumère toutes les actions, calcule regrets
@@ -134,17 +143,15 @@ class HUNLMCCFRTrainer:
                 action_utils[i] = self._traverse(child, deck_rest, traverser)
             node_util = float(np.dot(sigma, action_utils))
 
-            # Mise à jour des regrets (cumulative)
-            for i in range(num_actions):
+            # Update regrets : tables 5-large, indexées par enum value
+            for i, ai in enumerate(legal_indices):
                 regret = action_utils[i] - node_util
-                self.regret_sum[key][i] += regret
+                self.regret_sum[key][ai] += regret
             return node_util
         else:
             # Échantillonne UNE action selon sigma, met à jour strategy_sum
-            # (strategy moyenne accumulée pour l'opposant)
-            for i in range(num_actions):
-                self.strategy_sum[key][i] += sigma[i]
-            # Sample
+            for i, ai in enumerate(legal_indices):
+                self.strategy_sum[key][ai] += sigma[i]
             idx = self.rng.choices(range(num_actions), weights=sigma.tolist())[0]
             child = state.apply(legal[idx])
             return self._traverse(child, deck_rest, traverser)
@@ -172,15 +179,24 @@ class HUNLMCCFRTrainer:
     # ---- Inference -------------------------------------------------------
 
     def average_strategy(self, key: bytes,
-                         num_actions: int) -> np.ndarray:
-        """Stratégie moyenne accumulée (= la stratégie finale après convergence)."""
+                         legal_indices: List[int]) -> np.ndarray:
+        """Stratégie moyenne pour les actions légales courantes.
+        Lit la table (taille 5 nouveau format), masque, renormalise.
+        Si ancien format incompatible, retourne uniforme (fallback)."""
+        n = len(legal_indices)
         if key not in self.strategy_sum:
-            return np.full(num_actions, 1.0 / num_actions, dtype=np.float32)
+            return np.full(n, 1.0 / n, dtype=np.float32)
         ss = self.strategy_sum[key]
-        total = ss.sum()
+        if len(ss) < NUM_ABSTRACT_ACTIONS:
+            # Ancien format variable-size : pas indexable par action enum value
+            return np.full(n, 1.0 / n, dtype=np.float32)
+        masked = np.zeros(n, dtype=np.float32)
+        for i, ai in enumerate(legal_indices):
+            masked[i] = ss[ai]
+        total = masked.sum()
         if total > 0:
-            return ss / total
-        return np.full(num_actions, 1.0 / num_actions, dtype=np.float32)
+            return masked / total
+        return np.full(n, 1.0 / n, dtype=np.float32)
 
     # ---- Persistence -----------------------------------------------------
 
