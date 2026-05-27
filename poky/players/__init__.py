@@ -12,6 +12,7 @@ from poky.players.claude_player import ClaudePlayer
 from poky.players.adaptive import AdaptiveHeuristicPlayer
 from poky.players.pro_claude import ProClaude
 from poky.players.blueprint_player import BlueprintPlayer
+from poky.players.nmax_blueprint_player import NMaxBlueprintPlayer
 
 __all__ = [
     "Player", "RandomPlayer", "AlwaysCallPlayer",
@@ -19,5 +20,5 @@ __all__ = [
     "TightPassivePlayer", "TightAggressivePlayer",
     "LooseAggressivePlayer", "ManiacPlayer",
     "NFSPPlayer", "ClaudePlayer", "AdaptiveHeuristicPlayer", "ProClaude",
-    "BlueprintPlayer",
+    "BlueprintPlayer", "NMaxBlueprintPlayer",
 ]

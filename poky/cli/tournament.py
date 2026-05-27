@@ -20,7 +20,7 @@ from poky.players import (
     RandomPlayer, AlwaysCallPlayer, HeuristicPlayer,
     TightPassivePlayer, TightAggressivePlayer,
     LooseAggressivePlayer, ManiacPlayer, NFSPPlayer, ClaudePlayer,
-    AdaptiveHeuristicPlayer,
+    AdaptiveHeuristicPlayer, NMaxBlueprintPlayer,
 )
 
 
@@ -57,7 +57,21 @@ PLAYER_FACTORY = {
     "nfsp":           _nfsp_factory,
     "claude":         lambda i: ClaudePlayer(seed=9000 + i),
     "adaptive":       lambda i: AdaptiveHeuristicPlayer(seed=8000 + i),
+    "blueprint_3max": lambda i: _blueprint_3max_factory(i),
 }
+
+
+def _blueprint_3max_factory(i):
+    candidates = [
+        os.path.join("data", "blueprint_3max", "latest.pkl"),
+        os.path.join("data", "blueprint_3max", "smoke.pkl"),
+    ]
+    for path in candidates:
+        if os.path.exists(path):
+            return NMaxBlueprintPlayer(model_path=path,
+                                       fallback_seed=11000 + i,
+                                       sample_seed=12000 + i)
+    raise SystemExit("Pas de blueprint 3-max. Lance d'abord training.")
 
 
 # La gauntlet : matchups à tester. Format : (label, list[opponent_names])
