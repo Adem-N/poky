@@ -23,6 +23,20 @@ from poky.abstraction.postflop import (
     get_boundaries,
     NUM_BUCKETS as NUM_POSTFLOP_BUCKETS,
 )
+from poky.abstraction.action_abstraction import (
+    ABSTRACT_ACTIONS,
+    NUM_ABSTRACT_ACTIONS,
+    legal_abstract_actions,
+    action_index,
+    index_to_action,
+)
+from poky.abstraction.infoset import (
+    encode_history,
+    decode_history,
+    infoset_key,
+    decode_for_debug,
+    history_truncated,
+)
 
 __all__ = [
     # preflop
@@ -39,4 +53,16 @@ __all__ = [
     "postflop_bucket",
     "get_boundaries",
     "NUM_POSTFLOP_BUCKETS",
+    # action abstraction
+    "ABSTRACT_ACTIONS",
+    "NUM_ABSTRACT_ACTIONS",
+    "legal_abstract_actions",
+    "action_index",
+    "index_to_action",
+    # infoset
+    "encode_history",
+    "decode_history",
+    "infoset_key",
+    "decode_for_debug",
+    "history_truncated",
 ]

@@ -23,10 +23,11 @@ Pour MCCFR training, cela ralentit mais reste acceptable. Pour bot live, cache
 les résultats par (canonical_hole_class, canonical_board_sig) à l'usage.
 """
 import bisect
+import hashlib
 import json
 import os
 import random
-from typing import List, Optional
+from typing import List, Optional, Sequence
 
 from poky.equity import monte_carlo_equity
 from poky.equity.estimator import ALL_CARDS_PHEV
@@ -121,35 +122,73 @@ def _bucket_from_equity(equity: float, street: str) -> int:
     return bisect.bisect_left(boundaries, equity)
 
 
+def _deterministic_rng(cards: Sequence[str]) -> random.Random:
+    """RNG seeded de façon déterministe à partir des cartes (ordre indépendant).
+    Garantit que le même (hole, board) donne toujours le même bucket — critique
+    pour la cohérence entre training MCCFR et inférence."""
+    # Sort pour rendre l'ordre des cartes invariant (AsKh = KhAs même hand)
+    key = ",".join(sorted(cards))
+    h = hashlib.md5(key.encode()).hexdigest()[:8]
+    return random.Random(int(h, 16))
+
+
+# Cache en mémoire pour accélérer (MCCFR re-visite souvent les mêmes states)
+_BUCKET_CACHE: dict = {}
+_BUCKET_CACHE_MAX = 100_000
+
+
+def _cached_bucket(hole: list, board: list, street: str,
+                   simulations: int) -> int:
+    """Récupère le bucket en cache ou le calcule (déterministe)."""
+    cache_key = (tuple(sorted(hole)), tuple(sorted(board)))
+    if cache_key in _BUCKET_CACHE:
+        return _BUCKET_CACHE[cache_key]
+    rng = _deterministic_rng(list(hole) + list(board))
+    eq = monte_carlo_equity(hole, board, num_opponents=1,
+                            simulations=simulations, rng=rng)
+    bucket = _bucket_from_equity(eq, street)
+    # Cache cap pour éviter explosion mémoire (eviction LRU-like simpliste)
+    if len(_BUCKET_CACHE) < _BUCKET_CACHE_MAX:
+        _BUCKET_CACHE[cache_key] = bucket
+    return bucket
+
+
 # ---- API publique ---------------------------------------------------------
 
 def flop_bucket(hole, board, simulations: int = RUNTIME_SIMULATIONS,
                 rng: Optional[random.Random] = None) -> int:
     """Bucket 0..K-1 pour un état flop. K=5 par défaut.
-    `hole` = 2 cartes, `board` = 3 cartes (format rlcard 'HQ')."""
+    Déterministe pour un (hole, board) donné (cache + seed dérivé du hash)."""
     if len(board) != 3:
         raise ValueError(f"flop attend 3 cartes, got {len(board)}")
-    eq = monte_carlo_equity(hole, board, num_opponents=1,
-                            simulations=simulations, rng=rng)
-    return _bucket_from_equity(eq, "flop")
+    if rng is not None:
+        # Caller fournit un RNG explicite → on respecte (utile pour tests)
+        eq = monte_carlo_equity(hole, board, num_opponents=1,
+                                simulations=simulations, rng=rng)
+        return _bucket_from_equity(eq, "flop")
+    return _cached_bucket(hole, board, "flop", simulations)
 
 
 def turn_bucket(hole, board, simulations: int = RUNTIME_SIMULATIONS,
                 rng: Optional[random.Random] = None) -> int:
     if len(board) != 4:
         raise ValueError(f"turn attend 4 cartes, got {len(board)}")
-    eq = monte_carlo_equity(hole, board, num_opponents=1,
-                            simulations=simulations, rng=rng)
-    return _bucket_from_equity(eq, "turn")
+    if rng is not None:
+        eq = monte_carlo_equity(hole, board, num_opponents=1,
+                                simulations=simulations, rng=rng)
+        return _bucket_from_equity(eq, "turn")
+    return _cached_bucket(hole, board, "turn", simulations)
 
 
 def river_bucket(hole, board, simulations: int = RUNTIME_SIMULATIONS,
                  rng: Optional[random.Random] = None) -> int:
     if len(board) != 5:
         raise ValueError(f"river attend 5 cartes, got {len(board)}")
-    eq = monte_carlo_equity(hole, board, num_opponents=1,
-                            simulations=simulations, rng=rng)
-    return _bucket_from_equity(eq, "river")
+    if rng is not None:
+        eq = monte_carlo_equity(hole, board, num_opponents=1,
+                                simulations=simulations, rng=rng)
+        return _bucket_from_equity(eq, "river")
+    return _cached_bucket(hole, board, "river", simulations)
 
 
 def postflop_bucket(hole, board, **kwargs) -> int:
