@@ -15,38 +15,59 @@ Le projet a atteint un état MVP solide (Phases 1-6 livrées) mais le bot MCCFR 
 
 ---
 
-## Architecture cible (5 tiers)
+## Architecture cible (5 tiers, ARCHITECTURE ADAPTATIVE)
+
+**Principe clé** : les ranges GTO ne sont PAS des règles rigides — c'est une *connaissance de référence*, comme un livre de théorie qu'un pro a lu. Le bot **part** de ces ranges mais s'en **écarte dynamiquement** selon : le profil adverse, le résultat du self-play, l'analyse de la situation spécifique.
 
 ```
-TIER 1 — Expert Knowledge (HARDCODÉ, NOUVEAU)
-   Ranges GTO préflop par position + situation
-   Principes postflop (c-bet, defense, bet sizing)
-   Source : charts publiées (Snowie/GTOWizard/Pio outputs)
+TIER 1 — Knowledge Base (RÉFÉRENCE, pas obligation)
+   - Ranges GTO publiées comme "stratégie par défaut quand inconnu"
+   - Mixed frequencies (ex AKs 3-bet 70% / call 30%) — déjà non-déterministe
+   - Le bot CONNAÎT ces ranges mais peut les ignorer
+   - Utilisé comme warm-start pour MCCFR (Tier 3)
    ↓
-TIER 2 — Equity Heuristics (DÉJÀ FAIT)
-   HeuristicPlayer + AdaptivePlayer
-   Monte Carlo equity + pot odds + position
+TIER 2 — Equity-aware play (DÉJÀ FAIT)
+   - HeuristicPlayer + AdaptivePlayer
+   - Monte Carlo equity, pot odds, position
+   - Fallback robuste si autres tiers indisponibles
    ↓
-TIER 3 — CFR Refinement (DÉJÀ FAIT MVP, À AMÉLIORER)
-   MCCFR blueprint warm-startée depuis Tier 1+2
-   Self-play pour patcher les leaks que les rules manquent
+TIER 3 — CFR Learning (DÉJÀ FAIT MVP, À ÉTENDRE)
+   - MCCFR self-play, warm-startée depuis Tier 1+2
+   - **Peut S'ÉLOIGNER des ranges GTO** si self-play trouve mieux
+   - Découvre les leaks que les rules manquent
+   - Multi-process pour scale
    ↓
-TIER 4 — Real-time Subgame Solving (DÉJÀ FAIT MVP, À AMÉLIORER)
-   CFR sur sous-jeu courant pendant ~5-30s par décision
+TIER 4 — Real-time Subgame Solver (DÉJÀ FAIT MVP, À AMÉLIORER)
+   - CFR sur sous-jeu courant, 5-30s par décision
+   - Considère la situation SPÉCIFIQUE (cartes board, ranges déduites adverses)
+   - **Range estimation basée sur les actions observées de l'adversaire**, pas hardcodée
    ↓
-TIER 5 — Opponent Modeling (DÉJÀ FAIT MVP)
-   VPIP/PFR/AF tracking, profil-aware adjustments
+TIER 5 — Adaptive Exploitation (NOUVEAU + extension de l'existant)
+   - VPIP/PFR/AF tracking par adversaire (déjà)
+   - **Déviations CALCULÉES des ranges GTO selon profil détecté** :
+     • vs nit (VPIP<15) : steal +30%, fold to 3-bet +20%
+     • vs fish (VPIP>40 + low AF) : value bet wider, supprime bluffs
+     • vs maniac (high AF) : call down lighter, 3-bet polarisé
+     • vs TAG/inconnu : reste GTO
+   - **Switch dynamique GTO ↔ Exploit** : confiance dans le modèle adverse
 ```
 
-**Le bot live (CFRPlayer v2) consulte les 5 tiers en cascade** : si Tier 5 détecte un exploit, agit. Sinon Tier 4 raffine. Sinon Tier 3 blueprint. Sinon Tier 2 heuristic. Sinon Tier 1 par défaut.
+**Le bot live consulte les tiers en CASCADE D'INFLUENCE** (pas de fallback) :
+1. Tier 1 fournit la base (ce que GTO dirait)
+2. Tier 3 modifie selon ce que le self-play a appris
+3. Tier 4 raffine selon la situation spécifique (real-time CFR)
+4. Tier 5 dévie selon le profil adverse détecté
+5. Tier 2 sert de garde-fou (équité sanity check)
+
+**Le bot N'EST JAMAIS hardcodé sur une seule action** : à chaque info-set il a une distribution de probabilités, modifiée par tous les tiers.
 
 ---
 
 ## Phases (~12-16 semaines de travail, 2 sessions × 4h/semaine)
 
-### Phase X1 — Tier 1 : ranges GTO hardcodées (2-3 semaines)
+### Phase X1 — Tier 1 : ranges GTO comme RÉFÉRENCE (2-3 semaines)
 
-**Quoi** : Injecter les ranges GTO publiées comme stratégie de base, par position et situation.
+**Quoi** : Charger les ranges GTO publiées comme **connaissance de référence**, pas comme règles obligatoires. Le bot consulte ces ranges mais le Tier 3 (MCCFR) peut dévier librement, et le Tier 5 (adaptive) module selon l'adversaire.
 
 **Couverture minimale** :
 - HU : open BTN, 3-bet BB vs BTN, 4-bet BTN vs 3-bet, call/raise BB
@@ -124,6 +145,33 @@ TIER 5 — Opponent Modeling (DÉJÀ FAIT MVP)
 **Estimation** : 30-40h code + temps d'attente
 
 **Critère** : blueprint hybride bat ExpertOnlyPlayer de +3 bb/100 sur 10k mains.
+
+---
+
+### Phase X4.5 — Tier 5 : Adaptive Exploitation (NOUVEAU, 1 semaine)
+
+**Quoi** : Étendre `AdaptiveHeuristicPlayer` pour devenir une couche de **déviation calculée** au-dessus de la stratégie de base.
+
+**Logique** : pour chaque opposant, on a un profil estimé (déjà tracké). Selon ce profil, on calcule des "modificateurs" qu'on applique aux probabilités d'action du bot.
+
+**Livrables** :
+- `poky/expert/exploit_adjustments.py` :
+  - `compute_deviation(base_strategy, opp_profile, situation) -> adjusted_strategy`
+  - Tables d'ajustement par profil × situation (sourced from poker theory) :
+    * vs NIT : multiplie bet_freq × 1.3, fold_to_3bet × 1.2
+    * vs FISH : value_bet_threshold ÷ 1.2, bluff_freq × 0.5
+    * vs MANIAC : call_threshold ÷ 1.3, polarize_3bet
+    * vs TAG : ~GTO, légère agression supplémentaire
+- `poky/players/exploitation_layer.py` : wrapper qui prend n'importe quel bot et applique des déviations
+- **Switch dynamique GTO ↔ Exploit** :
+  * Si sample size < 30 → 100% GTO
+  * Si sample size 30-100 → mix progressif
+  * Si sample size > 100 + profil clair → full exploit
+  * Si profil incohérent / changeant → revient à GTO (l'adversaire est un meta-player)
+
+**Critère succès** : sur table de profils mixtes (TAG + LAG + Maniac + Nit + Fish), le bot avec exploitation layer gagne +3 bb/100 vs même bot sans la couche.
+
+**Estimation** : 30-40h
 
 ---
 
@@ -251,6 +299,27 @@ Session 16-20: Phase X7 (eval continue + fixes)     — 20h
 ```
 
 Total ~80h actif sur 4 mois.
+
+---
+
+## Philosophie d'adaptation (clarification importante)
+
+**Le bot N'EST PAS un simple lookup de ranges hardcodées.** À chaque décision en live :
+
+1. **Détermine la base** : ranges GTO (Tier 1) modifiées par ce que MCCFR a appris (Tier 3) → donne une distribution de probabilités initiale
+2. **Raffine la situation** : subgame solver (Tier 4) ajuste selon les cartes spécifiques + ranges adverses déduites des actions observées dans la main
+3. **Exploite si possible** : couche adaptive (Tier 5) module les probabilités selon le profil de l'adversaire détecté sur les hands précédentes
+4. **Sample** : tire l'action selon la distribution finale
+
+**Le bot dévie en permanence.** Deux décisions dans la même situation peuvent être différentes (mixed strategy). Et la même situation avec un adversaire différent donne des stratégies différentes.
+
+**Garde-fous contre le "trop d'exploit"** :
+- Sample size minimum avant de dévier (30 hands de profil clair)
+- Si profil incohérent → revient en GTO
+- Adversaire qui semble adapter SES exploitation → assume meta-player, joue GTO
+- Toujours un certain pourcentage de mixed pour rester non-exploitable
+
+C'est l'architecture utilisée par Pluribus pour 6-max NLHE (Brown & Sandholm 2019).
 
 ---
 
