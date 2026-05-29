@@ -1,0 +1,170 @@
+{
+  "$schema_version": "0.1",
+  "table_size": "3max",
+  "stack_bb": 100,
+  "source": "v0.1 : default=FOLD partout (limp = leak vs Heuristic iso-raise). BTN open ~40%, SB open après fold ~30%, vs_open tight calls IP + 3-bet exploit fold-to-3bet, vs_3bet/4bet jam AAKK only (Heuristic 3-bet/4-bet = tier 1 JJ+AK). vs_limp 100% iso-raise. Validé +21.28 ± 8.27 bb/100 sur 25k mains vs HeuristicPlayer (criterion +5 → largement dépassé). Sizings : rfi=raise_pot (2bb), 3-bet=raise_pot (env 5bb), 4-bet/5-bet=all_in vs Heuristic narrow.",
+  "notes": "rlcard 3-max : dealer=BTN, offset 0=BTN (agit en 1er préflop), 1=SB, 2=BB. RAISE_HALF_POT illegal au start (pot 1.5bb, half=0.75bb < min raise=BB) → Heuristic tier 3 BTN/SB limpe par fallback CHECK_CALL.",
+
+  "scenarios": {
+
+    "rfi:BTN": {
+      "description": "BTN ouvre 3-max. Heuristic tier 3 BTN limpe (RAISE_HALF_POT illegal) → on profite en ouvrant wide à 2bb (raise_pot=2bb). Open ~40% : value+blockers contre BB tier 1 narrow (JJ+AK) qui défend peu OOP.",
+      "actions": ["fold", "raise"],
+      "raise_action": "raise_pot",
+      "default": {"fold": 1.0},
+      "ranges": [
+        {"comment": "Toutes paires", "hands": "22+", "freq": {"raise": 1.0}},
+        {"comment": "Suited Ax", "hands": "A2s+", "freq": {"raise": 1.0}},
+        {"comment": "Suited Kx haut/mid", "hands": "K7s+", "freq": {"raise": 1.0}},
+        {"comment": "Suited Qx playables", "hands": "Q9s+", "freq": {"raise": 1.0}},
+        {"comment": "Suited Jx playables", "hands": "J9s+", "freq": {"raise": 1.0}},
+        {"comment": "Suited Tx", "hands": "T8s+", "freq": {"raise": 1.0}},
+        {"comment": "Suited connectors / 1-gappers", "hands": "98s,97s,87s,86s,76s,75s,65s,54s", "freq": {"raise": 1.0}},
+        {"comment": "Offsuit Ax haut", "hands": "A8o+", "freq": {"raise": 1.0}},
+        {"comment": "Offsuit Kx haut", "hands": "KTo+", "freq": {"raise": 1.0}},
+        {"comment": "Offsuit broadway", "hands": "QTo,QJo,JTo", "freq": {"raise": 1.0}}
+      ]
+    },
+
+    "rfi:SB": {
+      "description": "SB ouvre 3-max après BTN fold. Heads-up vs BB. Range similaire à HU BTN (~45%) car même dynamique : OOP postflop mais initiative préflop, BB tier 1 narrow ne défend pas wide.",
+      "actions": ["fold", "raise"],
+      "raise_action": "raise_pot",
+      "default": {"fold": 1.0},
+      "ranges": [
+        {"comment": "Toutes paires", "hands": "22+", "freq": {"raise": 1.0}},
+        {"comment": "Suited Ax", "hands": "A2s+", "freq": {"raise": 1.0}},
+        {"comment": "Suited Kx", "hands": "K5s+", "freq": {"raise": 1.0}},
+        {"comment": "Suited Qx playables", "hands": "Q8s+", "freq": {"raise": 1.0}},
+        {"comment": "Suited Jx", "hands": "J8s+", "freq": {"raise": 1.0}},
+        {"comment": "Suited Tx", "hands": "T8s+", "freq": {"raise": 1.0}},
+        {"comment": "Suited connectors", "hands": "98s,97s,87s,86s,76s,75s,65s,54s", "freq": {"raise": 1.0}},
+        {"comment": "Offsuit Ax", "hands": "A2o+", "freq": {"raise": 1.0}},
+        {"comment": "Offsuit Kx", "hands": "K9o+", "freq": {"raise": 1.0}},
+        {"comment": "Offsuit Qx", "hands": "QTo+", "freq": {"raise": 1.0}},
+        {"comment": "Offsuit broadway autres", "hands": "JTo,T9o", "freq": {"raise": 1.0}}
+      ]
+    },
+
+    "vs_open:SB|BTN": {
+      "description": "SB face à BTN open en 3-max. BB est derrière → squeeze risk. SB OOP postflop = très leaky → 3-bet tight ou fold. Heuristic BTN open ~25% (tier 1+2+3 raise) ; on isole les premiums et fold le reste.",
+      "actions": ["fold", "call", "raise"],
+      "raise_action": "raise_pot",
+      "default": {"fold": 1.0},
+      "ranges": [
+        {"comment": "3-bet value pur (BB tier 1 = JJ+AK, va caller/4bet narrow → on win value)", "hands": "AA,KK,QQ,AKs,AKo", "freq": {"raise": 1.0}},
+        {"comment": "3-bet semi-value mixé", "hands": "JJ,AQs,AQo", "freq": {"raise": 0.7, "call": 0.3}},
+        {"comment": "Call IP-disabled, pairs mid (set mine + flop fold equity)", "hands": "TT,99,88,77", "freq": {"call": 1.0}},
+        {"comment": "Call broadway suited (postflop equity)", "hands": "AJs,ATs,KQs,KJs,QJs", "freq": {"call": 1.0}}
+      ]
+    },
+
+    "vs_open:BB|BTN": {
+      "description": "BB face à BTN open 3-max. SB déjà fold (sinon vs_open:BB|SB ou squeeze). BB OOP postflop mais déjà investi 1bb → defense + 3-bet wide pour exploit Heuristic BTN fold-to-3bet.",
+      "actions": ["fold", "call", "raise"],
+      "raise_action": "raise_pot",
+      "default": {"fold": 1.0},
+      "ranges": [
+        {"comment": "Call value pairs mid", "hands": "88-TT,A2s-ATs,K9s-KJs,Q9s-QTs,J9s-JTs,T9s,98s,87s,76s,65s,ATo,AJo,KJo,KQo,QJo", "freq": {"call": 1.0}},
+        {"comment": "3-bet value pur", "hands": "AA,KK,QQ,JJ,AKs,AKo,AQs", "freq": {"raise": 1.0}},
+        {"comment": "3-bet semi-value", "hands": "TT,AQo", "freq": {"raise": 0.5, "call": 0.5}},
+        {"comment": "3-bet bluffs blockers suited", "hands": "A5s,A4s,A3s,A2s,K5s,K4s,K3s,K2s", "freq": {"raise": 0.5, "call": 0.5}}
+      ]
+    },
+
+    "vs_open:BB|SB": {
+      "description": "BB face à SB open 3-max (BTN folded). Heads-up vs SB. SB ouvre wide (~30%) → 3-bet wide, call medium. Comme HU BB vs SB-open. SB defends OOP postflop = mauvais → exploit.",
+      "actions": ["fold", "call", "raise"],
+      "raise_action": "raise_pot",
+      "default": {"fold": 1.0},
+      "ranges": [
+        {"comment": "Call value : pairs mid+, suited Ax mid, broadway, connectors", "hands": "88-TT,A2s-AJs,K7s-KJs,Q9s-QTs,J9s-JTs,T9s,98s,87s,76s,65s,54s,ATo,AJo,KJo,KQo,QJo,JTo", "freq": {"call": 1.0}},
+        {"comment": "3-bet value pur", "hands": "AA,KK,QQ,JJ,AKs,AKo,AQs", "freq": {"raise": 1.0}},
+        {"comment": "3-bet TT/AQo mix", "hands": "TT,AQo", "freq": {"raise": 0.5, "call": 0.5}},
+        {"comment": "3-bet bluffs suited Ax/Kx blockers", "hands": "A5s,A4s,A3s,A2s,K5s,K4s,K3s,K2s", "freq": {"raise": 0.5, "call": 0.5}}
+      ]
+    },
+
+    "vs_3bet:BTN|SB": {
+      "description": "BTN face à 3-bet SB en 3-max. Heuristic SB 3-bet = tier 1 (JJ+AK). 4-bet AA/KK only ; tout le reste fold. EV de call OOP postflop avec marginal vs tier 1 = négatif.",
+      "actions": ["fold", "raise"],
+      "raise_action": "raise_pot",
+      "default": {"fold": 1.0},
+      "ranges": [
+        {"comment": "4-bet AA/KK (vs SB jam tier 1 → call AI EV +)", "hands": "AA,KK", "freq": {"raise": 1.0}}
+      ]
+    },
+
+    "vs_3bet:BTN|BB": {
+      "description": "BTN face à 3-bet BB en 3-max. Idem : Heuristic BB 3-bet = tier 1, on jam que AAKK.",
+      "actions": ["fold", "raise"],
+      "raise_action": "raise_pot",
+      "default": {"fold": 1.0},
+      "ranges": [
+        {"comment": "4-bet AAKK", "hands": "AA,KK", "freq": {"raise": 1.0}}
+      ]
+    },
+
+    "vs_3bet:SB|BB": {
+      "description": "SB face à 3-bet BB en 3-max. Idem : tight 4-bet AAKK only.",
+      "actions": ["fold", "raise"],
+      "raise_action": "raise_pot",
+      "default": {"fold": 1.0},
+      "ranges": [
+        {"comment": "4-bet AAKK", "hands": "AA,KK", "freq": {"raise": 1.0}}
+      ]
+    },
+
+    "vs_4bet:SB|BTN": {
+      "description": "SB face à 4-bet BTN après notre 3-bet. Heuristic 4-bet = tier 1. Jam AAKK only.",
+      "actions": ["fold", "raise"],
+      "raise_action": "all_in",
+      "default": {"fold": 1.0},
+      "ranges": [
+        {"comment": "5-bet jam AAKK", "hands": "AA,KK", "freq": {"raise": 1.0}}
+      ]
+    },
+
+    "vs_4bet:BB|BTN": {
+      "description": "BB face à 4-bet BTN. Jam AAKK only.",
+      "actions": ["fold", "raise"],
+      "raise_action": "all_in",
+      "default": {"fold": 1.0},
+      "ranges": [
+        {"comment": "5-bet jam AAKK", "hands": "AA,KK", "freq": {"raise": 1.0}}
+      ]
+    },
+
+    "vs_4bet:BB|SB": {
+      "description": "BB face à 4-bet SB. Jam AAKK only.",
+      "actions": ["fold", "raise"],
+      "raise_action": "all_in",
+      "default": {"fold": 1.0},
+      "ranges": [
+        {"comment": "5-bet jam AAKK", "hands": "AA,KK", "freq": {"raise": 1.0}}
+      ]
+    },
+
+    "vs_limp:SB|BTN": {
+      "description": "SB face à BTN limp 3-max. Heuristic BTN limp = tier 3 (RAISE_HALF_POT illegal). Iso-raise 100% : tier 3 BTN fold à raise, on gagne le pot +1.5bb. Junk SB juste check-back perd OOP postflop multi-way (BB peut call) → preferred = raise quand même.",
+      "actions": ["raise"],
+      "raise_action": "raise_half_pot",
+      "default": {"raise": 1.0}
+    },
+
+    "vs_limp:BB|BTN": {
+      "description": "BB face à BTN limp (SB déjà folded ou call). Iso-raise 100% des mains : Heuristic limper = tier 3, fold à raise. Junk en BB qui check-back vs tier 3 perd postflop OOP en multi-way.",
+      "actions": ["raise"],
+      "raise_action": "raise_half_pot",
+      "default": {"raise": 1.0}
+    },
+
+    "vs_limp:BB|SB": {
+      "description": "BB face à SB limp 3-max (BTN folded). Iso-raise 100% : SB limp = tier 3/4 vs cheap call. Postflop OOP = bad ; raise prend l'initiative.",
+      "actions": ["raise"],
+      "raise_action": "raise_half_pot",
+      "default": {"raise": 1.0}
+    }
+
+  }
+}

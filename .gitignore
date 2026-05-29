@@ -31,3 +31,9 @@ data/*.npz
 
 # On garde data/ comme dossier vide via .gitkeep
 !data/.gitkeep
+
+# Binaires externes téléchargés (TexasSolver, etc.) — re-télécharger via release URL.
+external/
+
+# Cache solver généré
+data/solver_cache/

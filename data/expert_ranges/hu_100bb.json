@@ -1,0 +1,74 @@
+{
+  "$schema_version": "0.5",
+  "table_size": "HU",
+  "stack_bb": 100,
+  "source": "v0.3 : default=FOLD partout (le limp en HU SB se fait iso-raise par Heuristic et perd plus que folder). Open ~45%, BB 3-bet wide ~12% pour exploiter le fold-to-3-bet de Heuristic, défense vs_3bet tight (Heuristic ne 3-bet que tier 1), jam vs_4bet seulement AA/KK.",
+  "notes": "rlcard HU : dealer=BB, non-dealer=SB/BTN qui agit en premier préflop. raise_action mappe 'raise' au sizing concret de l'abstraction 5-actions.",
+
+  "scenarios": {
+
+    "rfi:BTN": {
+      "description": "BTN/SB première action préflop HU. Open ~45% (tight ; le limp leak ~5 bb/100 vs Heuristic qui iso-raise).",
+      "actions": ["fold", "raise"],
+      "raise_action": "raise_half_pot",
+      "default": {"fold": 1.0},
+      "ranges": [
+        {"comment": "Toutes paires", "hands": "22+", "freq": {"raise": 1.0}},
+        {"comment": "Suited Ax tous", "hands": "A2s+", "freq": {"raise": 1.0}},
+        {"comment": "Suited Kx milieu/haut", "hands": "K5s+", "freq": {"raise": 1.0}},
+        {"comment": "Suited Qx playables", "hands": "Q8s+", "freq": {"raise": 1.0}},
+        {"comment": "Suited Jx playables", "hands": "J8s+", "freq": {"raise": 1.0}},
+        {"comment": "Suited Tx", "hands": "T8s+", "freq": {"raise": 1.0}},
+        {"comment": "Suited connectors / gappers playables", "hands": "98s,97s,87s,86s,76s,75s,65s,54s", "freq": {"raise": 1.0}},
+        {"comment": "Offsuit Ax", "hands": "A2o+", "freq": {"raise": 1.0}},
+        {"comment": "Offsuit Kx haut", "hands": "K9o+", "freq": {"raise": 1.0}},
+        {"comment": "Offsuit Qx haut", "hands": "QTo+", "freq": {"raise": 1.0}},
+        {"comment": "Offsuit broadway autres", "hands": "JTo,T9o", "freq": {"raise": 1.0}}
+      ]
+    },
+
+    "vs_limp:BB|BTN": {
+      "description": "BB face à un SB limp. Heuristic SB limp = tier 3 forcé (RAISE_HALF_POT illegal au start) ; tier 3 fold 100% à un raise. Donc iso-raise 100% de la range pour gagner +1bb à chaque limp. Check-back perd OOP vs tier 3 (BB postflop = OOP en HU).",
+      "actions": ["raise"],
+      "raise_action": "raise_half_pot",
+      "default": {"raise": 1.0}
+    },
+
+    "vs_open:BB|BTN": {
+      "description": "BB vs SB open. v0.5 : 3-bet wide pour exploit Heuristic fold-to-3bet ; calls TIGHTÉS (drop weak pairs/suited bas, weak offsuit). BB call = OOP postflop = leak — réduit la range d'appel.",
+      "actions": ["fold", "call", "raise"],
+      "raise_action": "raise_pot",
+      "default": {"fold": 1.0},
+      "ranges": [
+        {"comment": "Call solides : pairs mid+, suited broadway, ATo+, KJo+, suited connectors qualité", "hands": "88-TT,A2s-AJs,K7s-KJs,Q9s-QTs,J9s-JTs,T9s,98s,87s,76s,65s,ATo,AJo,KJo,KQo,QJo", "freq": {"call": 1.0}},
+
+        {"comment": "3-bet value pur", "hands": "AA,KK,QQ,JJ,AKs,AKo,AQs", "freq": {"raise": 1.0}},
+        {"comment": "3-bet TT/AQo mix (semi-value)", "hands": "TT,AQo", "freq": {"raise": 0.5, "call": 0.5}},
+        {"comment": "3-bet AJs/ATs mix", "hands": "AJs,ATs", "freq": {"raise": 0.3, "call": 0.7}},
+        {"comment": "3-bet bluffs suited Ax low (blockers + nut potential)", "hands": "A5s,A4s,A3s,A2s", "freq": {"raise": 0.7, "call": 0.3}},
+        {"comment": "3-bet bluffs suited Kx low (blockers)", "hands": "K5s,K4s,K3s,K2s", "freq": {"raise": 0.5, "call": 0.5}}
+      ]
+    },
+
+    "vs_3bet:BTN|BB": {
+      "description": "BTN face à 3-bet BB. v0.5 : Heuristic BB ne 3-bet QUE tier 1 (JJ+, AK). Strategy de fer : 4-bet AA/KK seulement (qui vont gagner big quand BB 5-bet jam tier 1), TOUT le reste fold. Pas de call OOP postflop avec marginal vs tier 1.",
+      "actions": ["fold", "raise"],
+      "raise_action": "raise_pot",
+      "default": {"fold": 1.0},
+      "ranges": [
+        {"comment": "4-bet AA/KK (BB 5-bet jam tier 1, on appelle all-in, EV +30-60bb)", "hands": "AA,KK", "freq": {"raise": 1.0}}
+      ]
+    },
+
+    "vs_4bet:BB|BTN": {
+      "description": "BB face à 4-bet BTN. Heuristic 4-bet = tier 1 (JJ+, AK). Tight : jam AA/KK seulement.",
+      "actions": ["fold", "raise"],
+      "raise_action": "all_in",
+      "default": {"fold": 1.0},
+      "ranges": [
+        {"comment": "5-bet jam pure value", "hands": "AA,KK", "freq": {"raise": 1.0}}
+      ]
+    }
+
+  }
+}

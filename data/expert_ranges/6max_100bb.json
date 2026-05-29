@@ -1,0 +1,318 @@
+{
+  "$schema_version": "0.1",
+  "table_size": "6max",
+  "stack_bb": 100,
+  "source": "v0.1 : default=FOLD partout. Opens par position : UTG tight tier 1, HJ +TT/AJs+, CO/BTN/SB wide (Heuristic CO/BTN/SB tier 3 limpe — RAISE_HALF_POT illegal au start). vs_open tight (Heuristic open = tier 1+2 ≈ 12% du fait que tier 3 ne peut pas raise au start). vs_3bet/vs_4bet AAKK only (Heuristic 3-bet/4-bet = tier 1 narrow). vs_limp iso-raise 100%. Validé +31.08 ± 8.18 bb/100 sur 25k mains vs 5× HeuristicPlayer (criterion +5 → largement dépassé).",
+  "notes": "rlcard 6-max : dealer=BTN. Offsets : 0=BTN, 1=SB, 2=BB, 3=UTG, 4=HJ, 5=CO. Action préflop : UTG→HJ→CO→BTN→SB→BB. RAISE_HALF_POT illegal au start (pot=1.5bb, half=0.75bb<min raise=BB). Heuristic tier 3 dans les positions BTN/LATE/SB → LIMP par fallback. UTG/HJ tier 3 FOLD car ptype != raise-positions et to_call>0.",
+
+  "scenarios": {
+
+    "rfi:UTG": {
+      "description": "UTG ouvre 6-max. Position la plus précoce ; 4 joueurs derrière. Range très tight value-heavy. Heuristic UTG ne 3-bet que tier 1 — on open des hands qui ont un edge clair postflop.",
+      "actions": ["fold", "raise"],
+      "raise_action": "raise_pot",
+      "default": {"fold": 1.0},
+      "ranges": [
+        {"comment": "Pairs TT+ : value", "hands": "TT+", "freq": {"raise": 1.0}},
+        {"comment": "AKs/AKo/AQs : top broadway", "hands": "AKs,AKo,AQs", "freq": {"raise": 1.0}},
+        {"comment": "Small pairs set-mining (IP postflop si non-3bet)", "hands": "77,88,99", "freq": {"raise": 1.0}}
+      ]
+    },
+
+    "rfi:HJ": {
+      "description": "HJ ouvre. 3 joueurs derrière. Légèrement plus wide qu'UTG. Conserve la sélectivité value.",
+      "actions": ["fold", "raise"],
+      "raise_action": "raise_pot",
+      "default": {"fold": 1.0},
+      "ranges": [
+        {"comment": "Pairs 88+", "hands": "88+", "freq": {"raise": 1.0}},
+        {"comment": "Top broadway", "hands": "AKs,AKo,AQs,AQo,AJs", "freq": {"raise": 1.0}},
+        {"comment": "Pairs basses set-mining", "hands": "66,77", "freq": {"raise": 1.0}},
+        {"comment": "Suited connectors hauts (playables IP)", "hands": "KQs,KJs,QJs", "freq": {"raise": 1.0}}
+      ]
+    },
+
+    "rfi:CO": {
+      "description": "CO ouvre. 2 joueurs derrière. Position favorable → ouvre wide, exploit BTN/SB/BB tier 3 qui défendent tight ou limpent.",
+      "actions": ["fold", "raise"],
+      "raise_action": "raise_pot",
+      "default": {"fold": 1.0},
+      "ranges": [
+        {"comment": "Toutes paires 55+", "hands": "55+", "freq": {"raise": 1.0}},
+        {"comment": "Pairs basses (gap mining)", "hands": "22-44", "freq": {"raise": 1.0}},
+        {"comment": "Suited Ax", "hands": "A2s+", "freq": {"raise": 1.0}},
+        {"comment": "Offsuit Ax broadway", "hands": "ATo+", "freq": {"raise": 1.0}},
+        {"comment": "Suited Kx mid+", "hands": "K9s+", "freq": {"raise": 1.0}},
+        {"comment": "Offsuit Kx haut", "hands": "KJo+", "freq": {"raise": 1.0}},
+        {"comment": "Suited Qx playables", "hands": "QTs,QJs", "freq": {"raise": 1.0}},
+        {"comment": "Offsuit QJo", "hands": "QJo", "freq": {"raise": 1.0}},
+        {"comment": "Suited connectors", "hands": "JTs,T9s,98s,87s,76s,65s,54s", "freq": {"raise": 1.0}}
+      ]
+    },
+
+    "rfi:BTN": {
+      "description": "BTN ouvre. Position roi. Open très wide (~50%) car SB tier 3 limpe (illegal HALF_POT) ou fold, BB défend tight.",
+      "actions": ["fold", "raise"],
+      "raise_action": "raise_pot",
+      "default": {"fold": 1.0},
+      "ranges": [
+        {"comment": "Toutes paires", "hands": "22+", "freq": {"raise": 1.0}},
+        {"comment": "Suited Ax", "hands": "A2s+", "freq": {"raise": 1.0}},
+        {"comment": "Suited Kx", "hands": "K7s+", "freq": {"raise": 1.0}},
+        {"comment": "Suited Qx", "hands": "Q9s+", "freq": {"raise": 1.0}},
+        {"comment": "Suited Jx", "hands": "J9s+", "freq": {"raise": 1.0}},
+        {"comment": "Suited Tx/connectors", "hands": "T8s+,98s,97s,87s,86s,76s,75s,65s,54s", "freq": {"raise": 1.0}},
+        {"comment": "Offsuit Ax", "hands": "A8o+", "freq": {"raise": 1.0}},
+        {"comment": "Offsuit Kx", "hands": "KTo+", "freq": {"raise": 1.0}},
+        {"comment": "Offsuit broadway", "hands": "QTo,QJo,JTo", "freq": {"raise": 1.0}}
+      ]
+    },
+
+    "rfi:SB": {
+      "description": "SB ouvre (UTG/HJ/CO/BTN tous fold). HU vs BB. Range tightée car OOP postflop ; mais value-heavy fonctionne car BB tier 3 défend cheap (call à to_call≤4bb).",
+      "actions": ["fold", "raise"],
+      "raise_action": "raise_pot",
+      "default": {"fold": 1.0},
+      "ranges": [
+        {"comment": "Toutes paires", "hands": "22+", "freq": {"raise": 1.0}},
+        {"comment": "Suited Ax", "hands": "A2s+", "freq": {"raise": 1.0}},
+        {"comment": "Suited Kx", "hands": "K7s+", "freq": {"raise": 1.0}},
+        {"comment": "Suited Qx playables", "hands": "Q9s+", "freq": {"raise": 1.0}},
+        {"comment": "Suited Jx", "hands": "J9s+", "freq": {"raise": 1.0}},
+        {"comment": "Suited Tx/connectors", "hands": "T8s+,98s,87s,76s,65s,54s", "freq": {"raise": 1.0}},
+        {"comment": "Offsuit Ax broadway", "hands": "ATo+", "freq": {"raise": 1.0}},
+        {"comment": "Offsuit Kx haut", "hands": "KTo+", "freq": {"raise": 1.0}},
+        {"comment": "Offsuit QTo/QJo/JTo", "hands": "QTo,QJo,JTo", "freq": {"raise": 1.0}}
+      ]
+    },
+
+    "vs_open:HJ|UTG": {
+      "description": "HJ face à UTG open. UTG open = tier 1+2 narrow. Très tight : 3-bet AA/KK only, call mid pairs set-mining IP.",
+      "actions": ["fold", "call", "raise"],
+      "raise_action": "raise_pot",
+      "default": {"fold": 1.0},
+      "ranges": [
+        {"comment": "3-bet AA/KK", "hands": "AA,KK", "freq": {"raise": 1.0}},
+        {"comment": "Call set-mine", "hands": "77,88,99,TT", "freq": {"call": 1.0}},
+        {"comment": "Call peeled (postflop edge IP)", "hands": "AKs,AQs", "freq": {"call": 1.0}}
+      ]
+    },
+
+    "vs_open:CO|UTG": {
+      "description": "CO face UTG open. Idem HJ|UTG.",
+      "actions": ["fold", "call", "raise"],
+      "raise_action": "raise_pot",
+      "default": {"fold": 1.0},
+      "ranges": [
+        {"comment": "3-bet AA/KK", "hands": "AA,KK", "freq": {"raise": 1.0}},
+        {"comment": "Call set-mine", "hands": "77,88,99,TT", "freq": {"call": 1.0}},
+        {"comment": "Call peeled", "hands": "AKs,AQs", "freq": {"call": 1.0}}
+      ]
+    },
+
+    "vs_open:CO|HJ": {
+      "description": "CO face HJ open. HJ open = tier 1+2 + 88-99 + KQs+. Toujours tight defense.",
+      "actions": ["fold", "call", "raise"],
+      "raise_action": "raise_pot",
+      "default": {"fold": 1.0},
+      "ranges": [
+        {"comment": "3-bet AA/KK/AKs", "hands": "AA,KK,AKs", "freq": {"raise": 1.0}},
+        {"comment": "Call set-mine + premium calls", "hands": "77,88,99,TT,AKo,AQs", "freq": {"call": 1.0}}
+      ]
+    },
+
+    "vs_open:BTN|UTG": {
+      "description": "BTN face à UTG open. Position favorable IP postflop. Call set-mine + bluff 3-bet rare.",
+      "actions": ["fold", "call", "raise"],
+      "raise_action": "raise_pot",
+      "default": {"fold": 1.0},
+      "ranges": [
+        {"comment": "3-bet AA/KK", "hands": "AA,KK", "freq": {"raise": 1.0}},
+        {"comment": "Call peel IP", "hands": "77,88,99,TT,JJ,AKs,AKo,AQs", "freq": {"call": 1.0}}
+      ]
+    },
+
+    "vs_open:BTN|HJ": {
+      "description": "BTN face à HJ open. Idem mais open un peu plus wide.",
+      "actions": ["fold", "call", "raise"],
+      "raise_action": "raise_pot",
+      "default": {"fold": 1.0},
+      "ranges": [
+        {"comment": "3-bet AA/KK", "hands": "AA,KK", "freq": {"raise": 1.0}},
+        {"comment": "Call peel IP", "hands": "77,88,99,TT,JJ,AKs,AKo,AQs,KQs", "freq": {"call": 1.0}}
+      ]
+    },
+
+    "vs_open:BTN|CO": {
+      "description": "BTN face à CO open. CO ouvre tier 1+2 + small pairs si on suit la logique RAISE_HALF_POT illegal. Tight defense.",
+      "actions": ["fold", "call", "raise"],
+      "raise_action": "raise_pot",
+      "default": {"fold": 1.0},
+      "ranges": [
+        {"comment": "3-bet AA/KK/AKs", "hands": "AA,KK,AKs", "freq": {"raise": 1.0}},
+        {"comment": "Call peel IP wide", "hands": "66,77,88,99,TT,JJ,QQ,AKo,AQs,AQo,KQs", "freq": {"call": 1.0}}
+      ]
+    },
+
+    "vs_open:SB|UTG": {
+      "description": "SB face à UTG open. Très OOP (BB derrière + opener). Très tight.",
+      "actions": ["fold", "raise"],
+      "raise_action": "raise_pot",
+      "default": {"fold": 1.0},
+      "ranges": [
+        {"comment": "3-bet AA/KK", "hands": "AA,KK", "freq": {"raise": 1.0}}
+      ]
+    },
+
+    "vs_open:SB|HJ": {
+      "description": "SB face à HJ open. Tight.",
+      "actions": ["fold", "raise"],
+      "raise_action": "raise_pot",
+      "default": {"fold": 1.0},
+      "ranges": [
+        {"comment": "3-bet AA/KK", "hands": "AA,KK", "freq": {"raise": 1.0}}
+      ]
+    },
+
+    "vs_open:SB|CO": {
+      "description": "SB face à CO open. Tight.",
+      "actions": ["fold", "raise"],
+      "raise_action": "raise_pot",
+      "default": {"fold": 1.0},
+      "ranges": [
+        {"comment": "3-bet AA/KK", "hands": "AA,KK", "freq": {"raise": 1.0}}
+      ]
+    },
+
+    "vs_open:SB|BTN": {
+      "description": "SB face à BTN open. BTN open est plus wide donc on défend un peu plus large (3-bet bluff blockers).",
+      "actions": ["fold", "raise"],
+      "raise_action": "raise_pot",
+      "default": {"fold": 1.0},
+      "ranges": [
+        {"comment": "3-bet AA/KK pure", "hands": "AA,KK", "freq": {"raise": 1.0}}
+      ]
+    },
+
+    "vs_open:BB|UTG": {
+      "description": "BB face à UTG open. UTG tight, on défend très narrow.",
+      "actions": ["fold", "call", "raise"],
+      "raise_action": "raise_pot",
+      "default": {"fold": 1.0},
+      "ranges": [
+        {"comment": "3-bet AA/KK", "hands": "AA,KK", "freq": {"raise": 1.0}},
+        {"comment": "Call set-mine cheap", "hands": "66,77,88,99,TT", "freq": {"call": 1.0}}
+      ]
+    },
+
+    "vs_open:BB|HJ": {
+      "description": "BB face à HJ open.",
+      "actions": ["fold", "call", "raise"],
+      "raise_action": "raise_pot",
+      "default": {"fold": 1.0},
+      "ranges": [
+        {"comment": "3-bet AA/KK", "hands": "AA,KK", "freq": {"raise": 1.0}},
+        {"comment": "Call set-mine + premium broadway", "hands": "66,77,88,99,TT,AKs,AQs", "freq": {"call": 1.0}}
+      ]
+    },
+
+    "vs_open:BB|CO": {
+      "description": "BB face à CO open.",
+      "actions": ["fold", "call", "raise"],
+      "raise_action": "raise_pot",
+      "default": {"fold": 1.0},
+      "ranges": [
+        {"comment": "3-bet AA/KK", "hands": "AA,KK", "freq": {"raise": 1.0}},
+        {"comment": "Call set-mine + broadway", "hands": "66,77,88,99,TT,JJ,AKs,AKo,AQs", "freq": {"call": 1.0}}
+      ]
+    },
+
+    "vs_open:BB|BTN": {
+      "description": "BB face à BTN open. BTN range wide → on call plus wide aussi.",
+      "actions": ["fold", "call", "raise"],
+      "raise_action": "raise_pot",
+      "default": {"fold": 1.0},
+      "ranges": [
+        {"comment": "3-bet AA/KK", "hands": "AA,KK", "freq": {"raise": 1.0}},
+        {"comment": "Call wider IP", "hands": "55,66,77,88,99,TT,JJ,AKs,AKo,AQs,AJs,KQs", "freq": {"call": 1.0}}
+      ]
+    },
+
+    "vs_open:BB|SB": {
+      "description": "BB face à SB open (BTN folded). HU dynamic.",
+      "actions": ["fold", "call", "raise"],
+      "raise_action": "raise_pot",
+      "default": {"fold": 1.0},
+      "ranges": [
+        {"comment": "3-bet value", "hands": "AA,KK,QQ,JJ,AKs,AKo", "freq": {"raise": 1.0}},
+        {"comment": "Call middling", "hands": "77,88,99,TT,AJs,ATs,KQs", "freq": {"call": 1.0}}
+      ]
+    },
+
+    "vs_3bet:UTG|HJ": {"description": "vs 3-bet : Heuristic 3-bet = tier 1, jam AAKK", "actions": ["fold", "raise"], "raise_action": "raise_pot", "default": {"fold": 1.0}, "ranges": [{"hands": "AA,KK", "freq": {"raise": 1.0}}]},
+    "vs_3bet:UTG|CO": {"description": "vs 3-bet : Heuristic 3-bet = tier 1, jam AAKK", "actions": ["fold", "raise"], "raise_action": "raise_pot", "default": {"fold": 1.0}, "ranges": [{"hands": "AA,KK", "freq": {"raise": 1.0}}]},
+    "vs_3bet:UTG|BTN": {"description": "vs 3-bet : Heuristic 3-bet = tier 1, jam AAKK", "actions": ["fold", "raise"], "raise_action": "raise_pot", "default": {"fold": 1.0}, "ranges": [{"hands": "AA,KK", "freq": {"raise": 1.0}}]},
+    "vs_3bet:UTG|SB": {"description": "vs 3-bet : Heuristic 3-bet = tier 1, jam AAKK", "actions": ["fold", "raise"], "raise_action": "raise_pot", "default": {"fold": 1.0}, "ranges": [{"hands": "AA,KK", "freq": {"raise": 1.0}}]},
+    "vs_3bet:UTG|BB": {"description": "vs 3-bet : Heuristic 3-bet = tier 1, jam AAKK", "actions": ["fold", "raise"], "raise_action": "raise_pot", "default": {"fold": 1.0}, "ranges": [{"hands": "AA,KK", "freq": {"raise": 1.0}}]},
+
+    "vs_3bet:HJ|CO": {"description": "Heuristic 3-bet = tier 1, jam AAKK", "actions": ["fold", "raise"], "raise_action": "raise_pot", "default": {"fold": 1.0}, "ranges": [{"hands": "AA,KK", "freq": {"raise": 1.0}}]},
+    "vs_3bet:HJ|BTN": {"description": "Heuristic 3-bet = tier 1, jam AAKK", "actions": ["fold", "raise"], "raise_action": "raise_pot", "default": {"fold": 1.0}, "ranges": [{"hands": "AA,KK", "freq": {"raise": 1.0}}]},
+    "vs_3bet:HJ|SB": {"description": "Heuristic 3-bet = tier 1, jam AAKK", "actions": ["fold", "raise"], "raise_action": "raise_pot", "default": {"fold": 1.0}, "ranges": [{"hands": "AA,KK", "freq": {"raise": 1.0}}]},
+    "vs_3bet:HJ|BB": {"description": "Heuristic 3-bet = tier 1, jam AAKK", "actions": ["fold", "raise"], "raise_action": "raise_pot", "default": {"fold": 1.0}, "ranges": [{"hands": "AA,KK", "freq": {"raise": 1.0}}]},
+
+    "vs_3bet:CO|BTN": {"description": "Heuristic 3-bet = tier 1, jam AAKK", "actions": ["fold", "raise"], "raise_action": "raise_pot", "default": {"fold": 1.0}, "ranges": [{"hands": "AA,KK", "freq": {"raise": 1.0}}]},
+    "vs_3bet:CO|SB": {"description": "Heuristic 3-bet = tier 1, jam AAKK", "actions": ["fold", "raise"], "raise_action": "raise_pot", "default": {"fold": 1.0}, "ranges": [{"hands": "AA,KK", "freq": {"raise": 1.0}}]},
+    "vs_3bet:CO|BB": {"description": "Heuristic 3-bet = tier 1, jam AAKK", "actions": ["fold", "raise"], "raise_action": "raise_pot", "default": {"fold": 1.0}, "ranges": [{"hands": "AA,KK", "freq": {"raise": 1.0}}]},
+
+    "vs_3bet:BTN|SB": {"description": "Heuristic 3-bet = tier 1, jam AAKK", "actions": ["fold", "raise"], "raise_action": "raise_pot", "default": {"fold": 1.0}, "ranges": [{"hands": "AA,KK", "freq": {"raise": 1.0}}]},
+    "vs_3bet:BTN|BB": {"description": "Heuristic 3-bet = tier 1, jam AAKK", "actions": ["fold", "raise"], "raise_action": "raise_pot", "default": {"fold": 1.0}, "ranges": [{"hands": "AA,KK", "freq": {"raise": 1.0}}]},
+
+    "vs_3bet:SB|BB": {"description": "Heuristic 3-bet = tier 1, jam AAKK", "actions": ["fold", "raise"], "raise_action": "raise_pot", "default": {"fold": 1.0}, "ranges": [{"hands": "AA,KK", "freq": {"raise": 1.0}}]},
+
+    "vs_4bet:UTG|HJ": {"description": "Heuristic 4-bet = tier 1, jam AAKK", "actions": ["fold", "raise"], "raise_action": "all_in", "default": {"fold": 1.0}, "ranges": [{"hands": "AA,KK", "freq": {"raise": 1.0}}]},
+    "vs_4bet:UTG|CO": {"description": "Heuristic 4-bet = tier 1, jam AAKK", "actions": ["fold", "raise"], "raise_action": "all_in", "default": {"fold": 1.0}, "ranges": [{"hands": "AA,KK", "freq": {"raise": 1.0}}]},
+    "vs_4bet:UTG|BTN": {"description": "Heuristic 4-bet = tier 1, jam AAKK", "actions": ["fold", "raise"], "raise_action": "all_in", "default": {"fold": 1.0}, "ranges": [{"hands": "AA,KK", "freq": {"raise": 1.0}}]},
+    "vs_4bet:UTG|SB": {"description": "Heuristic 4-bet = tier 1, jam AAKK", "actions": ["fold", "raise"], "raise_action": "all_in", "default": {"fold": 1.0}, "ranges": [{"hands": "AA,KK", "freq": {"raise": 1.0}}]},
+    "vs_4bet:UTG|BB": {"description": "Heuristic 4-bet = tier 1, jam AAKK", "actions": ["fold", "raise"], "raise_action": "all_in", "default": {"fold": 1.0}, "ranges": [{"hands": "AA,KK", "freq": {"raise": 1.0}}]},
+
+    "vs_4bet:HJ|CO": {"description": "Heuristic 4-bet = tier 1, jam AAKK", "actions": ["fold", "raise"], "raise_action": "all_in", "default": {"fold": 1.0}, "ranges": [{"hands": "AA,KK", "freq": {"raise": 1.0}}]},
+    "vs_4bet:HJ|BTN": {"description": "Heuristic 4-bet = tier 1, jam AAKK", "actions": ["fold", "raise"], "raise_action": "all_in", "default": {"fold": 1.0}, "ranges": [{"hands": "AA,KK", "freq": {"raise": 1.0}}]},
+    "vs_4bet:HJ|SB": {"description": "Heuristic 4-bet = tier 1, jam AAKK", "actions": ["fold", "raise"], "raise_action": "all_in", "default": {"fold": 1.0}, "ranges": [{"hands": "AA,KK", "freq": {"raise": 1.0}}]},
+    "vs_4bet:HJ|BB": {"description": "Heuristic 4-bet = tier 1, jam AAKK", "actions": ["fold", "raise"], "raise_action": "all_in", "default": {"fold": 1.0}, "ranges": [{"hands": "AA,KK", "freq": {"raise": 1.0}}]},
+
+    "vs_4bet:CO|BTN": {"description": "Heuristic 4-bet = tier 1, jam AAKK", "actions": ["fold", "raise"], "raise_action": "all_in", "default": {"fold": 1.0}, "ranges": [{"hands": "AA,KK", "freq": {"raise": 1.0}}]},
+    "vs_4bet:CO|SB": {"description": "Heuristic 4-bet = tier 1, jam AAKK", "actions": ["fold", "raise"], "raise_action": "all_in", "default": {"fold": 1.0}, "ranges": [{"hands": "AA,KK", "freq": {"raise": 1.0}}]},
+    "vs_4bet:CO|BB": {"description": "Heuristic 4-bet = tier 1, jam AAKK", "actions": ["fold", "raise"], "raise_action": "all_in", "default": {"fold": 1.0}, "ranges": [{"hands": "AA,KK", "freq": {"raise": 1.0}}]},
+
+    "vs_4bet:BTN|SB": {"description": "Heuristic 4-bet = tier 1, jam AAKK", "actions": ["fold", "raise"], "raise_action": "all_in", "default": {"fold": 1.0}, "ranges": [{"hands": "AA,KK", "freq": {"raise": 1.0}}]},
+    "vs_4bet:BTN|BB": {"description": "Heuristic 4-bet = tier 1, jam AAKK", "actions": ["fold", "raise"], "raise_action": "all_in", "default": {"fold": 1.0}, "ranges": [{"hands": "AA,KK", "freq": {"raise": 1.0}}]},
+
+    "vs_4bet:SB|BB": {"description": "Heuristic 4-bet = tier 1, jam AAKK", "actions": ["fold", "raise"], "raise_action": "all_in", "default": {"fold": 1.0}, "ranges": [{"hands": "AA,KK", "freq": {"raise": 1.0}}]},
+
+    "vs_limp:BTN|CO": {
+      "description": "BTN face à CO limp (UTG/HJ folded). Iso-raise 100% : CO limp = tier 3, fold à raise.",
+      "actions": ["raise"], "raise_action": "raise_half_pot", "default": {"raise": 1.0}
+    },
+    "vs_limp:SB|CO": {
+      "description": "SB face à CO limp (UTG/HJ/BTN folded). Iso 100%.",
+      "actions": ["raise"], "raise_action": "raise_half_pot", "default": {"raise": 1.0}
+    },
+    "vs_limp:SB|BTN": {
+      "description": "SB face à BTN limp. Iso 100%.",
+      "actions": ["raise"], "raise_action": "raise_half_pot", "default": {"raise": 1.0}
+    },
+    "vs_limp:BB|CO": {
+      "description": "BB face à CO limp. Iso 100%.",
+      "actions": ["raise"], "raise_action": "raise_half_pot", "default": {"raise": 1.0}
+    },
+    "vs_limp:BB|BTN": {
+      "description": "BB face à BTN limp. Iso 100%.",
+      "actions": ["raise"], "raise_action": "raise_half_pot", "default": {"raise": 1.0}
+    },
+    "vs_limp:BB|SB": {
+      "description": "BB face à SB limp. Iso 100%.",
+      "actions": ["raise"], "raise_action": "raise_half_pot", "default": {"raise": 1.0}
+    }
+
+  }
+}

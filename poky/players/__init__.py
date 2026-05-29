@@ -14,6 +14,8 @@ from poky.players.pro_claude import ProClaude
 from poky.players.blueprint_player import BlueprintPlayer
 from poky.players.nmax_blueprint_player import NMaxBlueprintPlayer
 from poky.players.cfr_player import CFRPlayer
+from poky.players.expert_only import ExpertOnlyPlayer
+from poky.players.solver_oracle import SolverOraclePlayer
 
 __all__ = [
     "Player", "RandomPlayer", "AlwaysCallPlayer",
@@ -22,4 +24,5 @@ __all__ = [
     "LooseAggressivePlayer", "ManiacPlayer",
     "NFSPPlayer", "ClaudePlayer", "AdaptiveHeuristicPlayer", "ProClaude",
     "BlueprintPlayer", "NMaxBlueprintPlayer", "CFRPlayer",
+    "ExpertOnlyPlayer", "SolverOraclePlayer",
 ]
