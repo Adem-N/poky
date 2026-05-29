@@ -219,6 +219,10 @@ class SnGRunner:
         active_players = [players[seat_map[i]] for i in range(num_at_table)]
         for p in active_players:
             p.reset()
+        # Profile-aware players (NitroPlayer with profile_db) flush their state
+        # to DB after each hand. We call it AT THE END of the hand below, but
+        # also defensively guard import.
+        _has_flush = lambda p: hasattr(p, "flush_profiles")
         from poky.players.base import ActionEvent
 
         state, pid = env.get_state(0), 0
@@ -242,6 +246,13 @@ class SnGRunner:
             steps += 1
             if steps > 200:
                 break
+        # Persist profiles (if any player supports it).
+        for p in active_players:
+            if hasattr(p, "flush_profiles"):
+                try:
+                    p.flush_profiles()
+                except Exception:
+                    pass  # never let profile persistence break the SnG
         return list(env.get_payoffs())
 
     def _play_3max_hand(self, players: Sequence, stacks: List[int],

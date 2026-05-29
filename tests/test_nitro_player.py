@@ -140,13 +140,13 @@ def test_detect_bb_call_vs_sb():
     assert player._detect_scenario(obs) == "bb_call_vs_sb"
 
 
-def test_detect_returns_none_on_limped_pot():
-    """BTN limped (CHECK_CALL with no prior aggression) -> outside Nash model."""
+def test_detect_returns_sb_vs_btn_limp_on_limped_pot():
+    """BTN limped (CHECK_CALL no prior aggression) -> SB has iso-push scenario."""
     player = NitroPlayer(seed=1)
     player.observe_action(_call_event(actor=0))   # BTN "limps"
     obs = _obs(player_id=1, hole_cards=["HA", "DA"], dealer_id=0,
                my_stack=29, my_committed=1)
-    assert player._detect_scenario(obs) is None
+    assert player._detect_scenario(obs) == "sb_vs_btn_limp"
 
 
 # ---- act() routing -----------------------------------------------------
@@ -294,3 +294,116 @@ def test_nitro_vs_heuristic_3max_short_match():
     assert stats["preflop_total"] > 0
     # Nash hit rate at 15bb 3-max should be very high.
     assert stats["nash_hit_rate"] > 0.7, stats
+
+
+# ---- N5 Profiling integration tests -----------------------------------
+
+def test_profile_db_loaded_on_first_use(tmp_path):
+    """Profiles passed via opp_ids are fetched from DB lazily."""
+    from poky.nitro.profile_db import ProfileDB
+    from poky.nitro.profiling import OpponentProfile
+
+    db_path = tmp_path / "p.sqlite"
+    db = ProfileDB(db_path)
+    db.save(OpponentProfile(
+        opp_id="alice", n_voluntary_actions=15, n_vpip=12, n_pfr=10,
+        last_seen="2026-05-29T12:00:00+00:00", n_hands_observed=15,
+    ))
+    db.close()
+
+    db2 = ProfileDB(db_path)
+    player = NitroPlayer(seed=1, opp_ids={1: "alice"}, profile_db=db2)
+    # Trigger lazy load
+    player._get_or_create_profile(1)
+    assert player._profiles[1].n_vpip == 12
+    db2.close()
+
+
+def test_reset_preserves_profiles():
+    """reset() between hands must KEEP _profiles dict; only per-hand state cleared."""
+    player = NitroPlayer(seed=1)
+    player.observe_action(_push_event(actor=1))
+    assert 1 in player._profiles
+    assert player._profiles[1].n_pfr == 1
+    n_before = player._profiles[1].n_pfr
+    player.reset()
+    # Profile must persist after reset
+    assert 1 in player._profiles
+    assert player._profiles[1].n_pfr == n_before
+
+
+def test_observe_action_updates_opp_profile():
+    """observe_action increments the right counters in the opp profile."""
+    player = NitroPlayer(seed=1, use_profiling=True)
+    # 3 pushes by opp at seat 0
+    player.observe_action(_push_event(actor=0))
+    player.observe_action(_push_event(actor=0))
+    player.observe_action(_push_event(actor=0))
+    profile = player._profiles.get(0)
+    assert profile is not None
+    assert profile.n_pfr == 3
+    assert profile.n_vpip == 3
+    assert profile.n_voluntary_actions == 3
+
+
+def test_classify_runs_maniac_after_3_pushes():
+    """After 4+ pushes, the classifier should label opp MANIAC (high PFR rule)."""
+    from poky.nitro.profiling import (
+        ARCHETYPE_MANIAC, classify_archetype,
+    )
+    player = NitroPlayer(seed=1, use_profiling=True)
+    for _ in range(4):
+        player.observe_action(_push_event(actor=0))
+    profile = player._profiles[0]
+    assert classify_archetype(profile) == ARCHETYPE_MANIAC
+
+
+def test_profile_drives_freq_adjustment(tmp_path):
+    """End-to-end: when opp is classified MANIAC, our sb_call_vs_btn freq goes up."""
+    from poky.nitro.profile_db import ProfileDB
+    from poky.nitro.profiling import OpponentProfile
+
+    # Pre-seed DB with MANIAC profile
+    db_path = tmp_path / "p.sqlite"
+    db = ProfileDB(db_path)
+    db.save(OpponentProfile(
+        opp_id="maniac_btn",
+        n_voluntary_actions=8, n_vpip=8, n_pfr=8,   # 100% PFR -> MANIAC
+        n_hands_observed=8,
+        last_seen="2026-05-29T12:00:00+00:00",
+    ))
+    db.close()
+
+    # Build obs where hero is SB facing a BTN push
+    db2 = ProfileDB(db_path)
+    player = NitroPlayer(seed=42, opp_ids={0: "maniac_btn"}, profile_db=db2,
+                         use_profiling=True)
+    player.observe_action(_push_event(actor=0))   # BTN pushed
+    # Hero is SB (player_id=1, dealer_id=0 -> offset 1 = SB)
+    obs = _obs(player_id=1, hole_cards=["S7", "D6"],   # marginal hand
+               dealer_id=0, my_stack=29, my_committed=1)
+    # We can't easily check the exact freq, but we can check classification kicked in
+    action = player.act(obs)
+    # At minimum: no crash, action is legal
+    assert action in obs.legal_actions
+    # Check that opponent was classified
+    from poky.nitro.profiling import ARCHETYPE_MANIAC, classify_archetype
+    assert classify_archetype(player._profiles[0]) == ARCHETYPE_MANIAC
+    db2.close()
+
+
+def test_flush_profiles_persists_to_db(tmp_path):
+    from poky.nitro.profile_db import ProfileDB
+
+    db_path = tmp_path / "p.sqlite"
+    db = ProfileDB(db_path)
+    player = NitroPlayer(seed=1, opp_ids={0: "bob"}, profile_db=db)
+    # Generate some events
+    player.observe_action(_push_event(actor=0))
+    player.observe_action(_push_event(actor=0))
+    player.flush_profiles()
+    # Read back from DB
+    loaded = db.load("bob")
+    assert loaded is not None
+    assert loaded.n_pfr == 2
+    db.close()

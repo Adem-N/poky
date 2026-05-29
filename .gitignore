@@ -37,3 +37,6 @@ external/
 
 # Cache solver généré
 data/solver_cache/
+
+# Profile DB générées par les benchs Nitro (per-opp stats persistantes)
+data/profile_db/

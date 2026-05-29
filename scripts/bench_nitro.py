@@ -23,6 +23,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
+from poky.nitro.profile_db import ProfileDB
 from poky.nitro.sng_runner import BlindLevel, SnGRunner
 from poky.players.archetypes import (
     LooseAggressivePlayer, ManiacPlayer, TightAggressivePlayer,
@@ -52,18 +53,37 @@ _PAYOUT_PROFILES = {
 }
 
 
-def run_bench(num_sngs: int, opp_factory, payouts, starting_chips: int,
-              seed_base: int, hands_per_level: int):
+def run_bench(num_sngs: int, opp_factory, opp_label: str, payouts,
+              starting_chips: int, seed_base: int, hands_per_level: int,
+              profile_db: "Optional[ProfileDB]" = None):
     """Run `num_sngs` SnGs cycling NitroPlayer across seats. Returns per-SnG
-    list of (nitro_seat, finish_position, payout)."""
+    list of (nitro_seat, finish_position, payout).
+
+    When `profile_db` is provided, opponent IDs are derived from `opp_label`
+    (the archetype name), so that profiles accumulate across all SnGs of the
+    same matchup. The bot then carries over the archetype-specific exploit
+    profile.
+    """
     results = []
     finish_count = [0, 0, 0]   # times finished 1st, 2nd, 3rd
-    coverage_total = {"nash_hits": 0, "preflop_total": 0, "postflop": 0}
+    coverage_total = {"nash_hits": 0, "preflop_total": 0, "postflop": 0,
+                      "archetype_counts": {}}
     total_hands = 0
 
     for sng_idx in range(num_sngs):
         nitro_seat = sng_idx % 3
-        nitro = NitroPlayer(seed=42 + sng_idx)
+
+        # Build opp_ids dict: each NON-nitro seat gets a stable virtual username
+        # like "{opp_label}_seat0" so DB carryover works across SnGs.
+        opp_ids = {
+            seat: f"{opp_label}_pos{seat}"
+            for seat in range(3) if seat != nitro_seat
+        }
+        nitro = NitroPlayer(
+            seed=42 + sng_idx,
+            opp_ids=opp_ids if profile_db else None,
+            profile_db=profile_db,
+        )
         opps = [opp_factory() for _ in range(2)]
         players = [None, None, None]
         players[nitro_seat] = nitro
@@ -91,6 +111,10 @@ def run_bench(num_sngs: int, opp_factory, payouts, starting_chips: int,
         coverage_total["nash_hits"] += s["nash_hits"]
         coverage_total["preflop_total"] += s["preflop_total"]
         coverage_total["postflop"] += s["postflop_decisions"]
+        for arch, cnt in s.get("archetype_counts", {}).items():
+            coverage_total["archetype_counts"][arch] = (
+                coverage_total["archetype_counts"].get(arch, 0) + cnt
+            )
 
     return results, finish_count, coverage_total, total_hands
 
@@ -128,6 +152,11 @@ def summarize(label: str, results, finish_count, coverage_total, total_hands,
     print(f"  Nash coverage : {coverage_total['nash_hits']}/{nash_total} "
           f"= {nash_rate*100:.1f}% preflop hits")
     print(f"  Postflop dec. : {coverage_total['postflop']}")
+    if coverage_total.get("archetype_counts"):
+        print(f"  Archetypes detected:")
+        for arch, c in sorted(coverage_total["archetype_counts"].items(),
+                              key=lambda x: -x[1]):
+            print(f"    {arch:12s}: {c}")
 
     # Verdict
     threshold = 33.33   # baseline
@@ -154,27 +183,49 @@ def main():
                     help="starting stack (chips). 300 with BB=20 = 15bb")
     ap.add_argument("--hands-per-level", type=int, default=4)
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--use-db", action="store_true",
+                    help="Enable persistent ProfileDB for cross-SnG profile accumulation")
+    ap.add_argument("--db-path", default="data/profile_db/nitro_bench.sqlite",
+                    help="Path to ProfileDB SQLite file (only with --use-db)")
+    ap.add_argument("--fresh-db", action="store_true",
+                    help="Delete existing DB before run (start clean)")
     args = ap.parse_args()
 
     opp_factory = _OPP_FACTORIES[args.opp]
     payouts = _PAYOUT_PROFILES[args.payouts]
 
+    profile_db = None
+    if args.use_db:
+        db_path = Path(args.db_path)
+        if args.fresh_db and db_path.exists():
+            db_path.unlink()
+        profile_db = ProfileDB(db_path)
+        print(f"ProfileDB enabled: {db_path}")
+
     print(f"Bench: NitroPlayer vs 2x {args.opp.upper()} | "
           f"start={args.chips} chips | payouts={args.payouts} | "
-          f"{args.sngs} SnGs")
+          f"{args.sngs} SnGs | profiling={'ON' if args.use_db else 'OFF'}")
 
     results, finish_count, coverage_total, total_hands = run_bench(
         num_sngs=args.sngs,
         opp_factory=opp_factory,
+        opp_label=args.opp,
         payouts=payouts,
         starting_chips=args.chips,
         seed_base=args.seed,
         hands_per_level=args.hands_per_level,
+        profile_db=profile_db,
     )
     summarize(
-        f"NitroPlayer vs 2x {args.opp.upper()} ({args.payouts})",
+        f"NitroPlayer vs 2x {args.opp.upper()} ({args.payouts}) "
+        f"[{'DB' if args.use_db else 'noDB'}]",
         results, finish_count, coverage_total, total_hands, payouts,
     )
+    if profile_db:
+        print(f"\nProfileDB stats after run:")
+        for k, v in profile_db.stats().items():
+            print(f"  {k:25s}: {v}")
+        profile_db.close()
 
 
 if __name__ == "__main__":
