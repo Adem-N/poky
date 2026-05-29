@@ -258,7 +258,8 @@ def classify_archetype(profile: OpponentProfile) -> str:
     if profile.n_voluntary_actions >= 6 and profile.limp_freq > 0.35:
         return ARCHETYPE_LIMPER
 
-    # 5-6. TAG / LAG require more sample for precision
+    # 5-6. LAG / TAG — strict thresholds (high sample required to avoid
+    # false positives from variance in 5-8 hand SnGs).
     if profile.n_voluntary_actions >= 10:
         if profile.vpip > 0.40 and profile.pfr > 0.25:
             return ARCHETYPE_LAG
