@@ -7,13 +7,7 @@ from poky.players.archetypes import (
     TightPassivePlayer, TightAggressivePlayer,
     LooseAggressivePlayer, ManiacPlayer,
 )
-from poky.players.nfsp_player import NFSPPlayer
-from poky.players.claude_player import ClaudePlayer
 from poky.players.adaptive import AdaptiveHeuristicPlayer
-from poky.players.pro_claude import ProClaude
-from poky.players.blueprint_player import BlueprintPlayer
-from poky.players.nmax_blueprint_player import NMaxBlueprintPlayer
-from poky.players.cfr_player import CFRPlayer
 from poky.players.expert_only import ExpertOnlyPlayer
 from poky.players.solver_oracle import SolverOraclePlayer
 
@@ -22,7 +16,6 @@ __all__ = [
     "HeuristicPlayer", "classify_preflop", "HumanCLIPlayer",
     "TightPassivePlayer", "TightAggressivePlayer",
     "LooseAggressivePlayer", "ManiacPlayer",
-    "NFSPPlayer", "ClaudePlayer", "AdaptiveHeuristicPlayer", "ProClaude",
-    "BlueprintPlayer", "NMaxBlueprintPlayer", "CFRPlayer",
+    "AdaptiveHeuristicPlayer",
     "ExpertOnlyPlayer", "SolverOraclePlayer",
 ]

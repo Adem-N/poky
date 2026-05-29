@@ -1,101 +1,97 @@
-# Critères de succès — Poky
+# Critères de succès — Poky (scope Nitro 3-max)
 
-But : avoir des **chiffres honnêtes et reproductibles** pour juger de la
-qualité du bot à chaque phase. Le critère "+5 bb/100 vs HeuristicPlayer"
-(historique Phase X1) était insuffisant — Heuristic a des leaks
-exploit-spécifiques liés à l'abstraction rlcard 5-actions. Battre
-Heuristic ne veut pas dire être proche d'un pro.
+But : chiffres honnêtes et reproductibles pour juger le NitroPlayer à
+chaque phase. Format cible = **Winamax Expresso Nitro** (3-max NLHE,
+stack départ 15bb, hyper-turbo, payouts winner-take-all sauf jackpots
+≥100x avec 80/12/8).
 
-## Setup standard pour tous les benchs
+Référence historique : ancien `SUCCESS_CRITERIA.md` (cash 100bb) est
+préservé dans `git log` du snapshot pre-Nitro.
 
-- **Stack** : 100 bb effectif (chips_per_player=200, BB=2).
-- **Tailles de tables** : HU, 3-max, 6-max — chacune doit passer les critères.
-- **Échantillon** : minimum 25 000 mains par bench (5 seeds × 5 000).
-- **Rotation positionnelle** : siège de l'expert cycle à chaque main (vérifié uniforme).
-- **Stat sig** : IC95 sur la moyenne, succès = bound inférieur de l'IC > seuil.
+## Setup standard pour benchs SnG
 
-## Baseline noise floor (sanity)
+- **Format** : SnG 3-max NLHE, stack départ 300 chips (15 BB), BB=20
+- **Escalation blinds** : selon structure Winamax Nitro (60s par niveau ≈ 6-8 mains par niveau)
+- **Payouts** : winner-take-all (cas majoritaire) sauf indication contraire
+- **Échantillon** : minimum **500 SnGs** (ouvre IC95 sur ROI et win rate)
+- **5+ seeds indépendants** par config
+- **Rotation des sièges** : NitroPlayer occupe (SnG_idx % 3) — pour neutraliser bias positionnel
+- **Stat sig** : IC95 sur win rate ; succès = bound inf > seuil
 
-Avant tout claim, vérifier que la mesure n'est pas biaisée :
+## Critères N1 — Push/fold solver Nash 3-max
 
-| Check | Cible | Mesure |
+`PushFoldSolver` doit produire des tables qui :
+
+| Test | Cible |
+|---|---|
+| Convergence | exploitability < 0.1 BB / 100 mains après ≤ 200 iter |
+| Symétrie | stacks égaux → strats identiques par position |
+| Cross-check référence | ≥ 80% match avec push72o.com / ICMIZER sur 30 spots |
+| Stack 5bb BTN open | push frequency ≥ 50% des mains (cohérent littérature) |
+| Stack 15bb BB cold-call vs SB push | < 25% (large fold equity) |
+
+## Critères N2 — ICM Malmuth-Harville
+
+`malmuth_harville_equity` doit :
+
+| Test | Cible |
+|---|---|
+| Stacks égaux + payouts 80/12/8 | equity = [33.3%, 33.3%, 33.3%] |
+| Stack ≈ 0 | equity ≈ 0 pour ce joueur |
+| Sum equities | = sum payouts (conservation) |
+| Match HRC sur 10 stacks tests | < 1% écart absolu |
+
+## Critères N3 — NitroPlayer brain
+
+| Adversaire | Win rate cible (sur 500+ SnGs) | Bound inf IC95 |
 |---|---|---|
-| HeuristicPlayer vs (N-1)× HeuristicPlayer, siège cyclé | mean dans IC95 de 0 | actuellement +2.72 ± 21.02 (6-max 100bb 25k) — OK |
-| sum(payoffs) par main | = 0 exactement | OK |
-| Distribution position cible | uniforme 1/N par offset_from_btn | OK (16.1-17.2% à 1/6) |
+| 2× RandomPlayer (sanity) | ≥ 80% | > 70% |
+| 2× AlwaysCallPlayer (sanity) | ≥ 75% | > 65% |
+| 2× HeuristicPlayer (baseline réf) | ≥ 55% | > 45% |
+| 1× Heuristic + 1× Random | ≥ 60% | > 50% |
+| 2× NitroPlayer (self-play) | 33.3% ± 5% (break-even attendu) | dans IC |
+| 2× Fish archetype (pop Nitro simulée) | ≥ 60% | > 50% |
 
-## Critères Phase X1 — Tier 1 preflop ranges
+Baseline noise floor (sanity) :
+- HVH 3-max : 33.3% par siège attendu (3 NitroPlayer self-play) ; bias par siège < 2 points
+- ROI sum = 0 sur winner-take-all (zero-sum chips)
 
-Phase X1 = ranges GTO préflop tunées contre Heuristic. C'est un **exploit
-tuner**, pas une stratégie robuste — mais doit quand même montrer qu'il
-**bat tous les archétypes** au-dessus du noise floor.
+**Critère consolidé N3** : toutes les cellules ci-dessus passent. Une seule
+qui échoue → retravailler avant N4.
 
-Pour chaque taille de table (HU, 3-max, 6-max), ExpertOnlyPlayer doit :
+## Critères N4 — Arena SnG opérationnelle
 
-| Adversaire | Bound inf IC95 | Sample |
-|---|---|---|
-| HeuristicPlayer (baseline overfit) | ≥ +5 bb/100 | 25k mains |
-| TightAggressive (≈ joueur récréatif sérieux) | > 0 bb/100 | 25k mains |
-| LooseAggressive | > 0 bb/100 | 25k mains |
-| TightPassive (Nit) | ≥ +15 bb/100 | 10k mains |
-| Maniac | ≥ +30 bb/100 | 10k mains |
-| RandomPlayer | ≥ +30 bb/100 | 10k mains |
-| AlwaysCallPlayer | ≥ +20 bb/100 | 10k mains |
+| Test | Cible |
+|---|---|
+| Blinds escalation correct | ≥ 6 mains par niveau au début, escalation effective |
+| Élimination quand stack = 0 | pas de bug, payout assigné |
+| Rotation positionnelle | distribution uniforme des sièges sur 500 SnGs |
+| Stat sig | IC95 calculé correctement sur win rate |
 
-Les seuils ≥ X pour les baselines triviaux (Random, Call, Maniac) sont des
-**garde-fous** : si on ne bat pas largement un Random, c'est qu'il y a un
-bug ou un leak grave dans la stratégie. Ces baselines DOIVENT être
-massivement battus.
+## Critères finaux "très bon joueur, pas top du panier"
 
-**Critère consolidé X1** : tous les critères ci-dessus passent sur les 3
-tailles de table. Si une seule case échoue → retravailler.
+Définition opérationnelle pour la soirée Discord :
 
-## Critères Phase X2 — Postflop principles
-
-À définir. Doit minimum maintenir tous les critères X1 ET ajouter :
-
-- vs HeuristicPlayer toujours ≥ +5 bb/100 sur les 3 tailles
-- Couverture Tier 2 (postflop rules) ≥ 70% des spots postflop ?
-- Pas de régression vs aucun archétype (toutes les cellules X1 stables ou +)
-
-## Critères Phase X3+ — MCCFR blueprint
-
-Le bot blueprint doit, en plus des critères X2 :
-
-- Sur Kuhn poker : converger vers Nash (exploitability < 0.001)
-- Sur Leduc poker : converger vers Nash (exploitability < 0.01)
-- Sur HU NLHE abstraction : exploitability mesurée et publiée
-- vs ExpertOnlyPlayer : ≥ 0 bb/100 sur 50k mains (pas régresser le Tier 1)
-
-## Critères finaux — "Pro level"
-
-Définition cible (à atteindre fin Phase X7) :
-
-1. **Gauntlet archétypes** : bat TOUS les archétypes (HU + 3-max + 6-max), bound inf IC95 > 0.
-2. **vs blueprint own** : ≥ 0 (non self-defeating).
-3. **vs un baseline externe fort** : par exemple, un MCCFR référence open-source. À identifier.
-4. **Exploitability** (HU NLHE abstraction) : ≤ 30 mbb/h via best-response sur strategy abstraite.
-5. **Long-run stability** : sur 100k+ mains, pas de drift en EV (variance OK, mean stable).
-
-Note : ne PAS confondre "bat Heuristic à +30 bb/100" avec "joue niveau pro".
-Heuristic est un opponent au strategy déterministe ; les pros n'ont pas
-ces patterns exploitables.
+1. **Bat les fish** : vs 2× Fish archetype, win rate ≥ 60% (vs 33% baseline)
+2. **Tient face à mid-regs** : vs 2× Heuristic, win rate ≥ 50% (ne perd pas significativement)
+3. **Ne s'écroule pas vs lui-même** : self-play 33.3% ± 5%
+4. **ROI positif** : sur 500 SnGs vs mix [Fish, Heuristic], ROI ≥ +10% (en chips)
+5. **Cohérence ICM** (si activé) : vs 2× Heuristic en mode ICM, gain par survie mesurable
 
 ## Méthodologie de mesure honnête
 
 1. **Toujours reporter** :
-   - mean bb/100
-   - IC95 (1.96 × SE)
-   - n (taille échantillon)
-   - couverture Tier 1 (% décisions consultant les ranges expertes vs fallback)
+   - Win rate global + IC95
+   - ROI moyen + IC95
+   - Distribution finish positions (1st/2nd/3rd)
+   - Sample size en SnGs
+   - Couverture push/fold lookup (% décisions consultant le Nash, vs fallback)
 2. **Toujours faire** :
-   - HVH baseline check avant claim (≈ 0 attendu)
+   - Sanity check HVH (NitroPlayer self-play) avant de claim
    - Cycle des sièges pour neutraliser bias positionnel
    - Multi-seed (≥ 5)
-   - Stack effectif explicite dans le label
 3. **Drapeaux rouges** :
-   - Couverture Tier 1 < 50% → résultat = surtout celui de Tier 2, pas du Tier 1
-   - IC95 bound inf < 0 → ne pas claim de victoire
-   - Hand sample < 10k → variance trop élevée pour conclure
-   - 1 seul seed → résultat = chance, pas signal
-   - Stack pas spécifié → benchmark non-reproductible
+   - Couverture push/fold < 70% → fallback domine, le solver n'est pas utilisé
+   - IC95 trop large → augmenter le sample (variance SnG est élevée)
+   - Win rate > 80% vs Heuristic → suspect de bug (Heuristic n'est pas Random)
+   - ROI > +50% → suspect de mismatch payouts ou compute
