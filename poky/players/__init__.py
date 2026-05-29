@@ -10,6 +10,7 @@ from poky.players.archetypes import (
 from poky.players.adaptive import AdaptiveHeuristicPlayer
 from poky.players.expert_only import ExpertOnlyPlayer
 from poky.players.solver_oracle import SolverOraclePlayer
+from poky.players.nitro_player import NitroPlayer
 
 __all__ = [
     "Player", "RandomPlayer", "AlwaysCallPlayer",
@@ -17,5 +18,5 @@ __all__ = [
     "TightPassivePlayer", "TightAggressivePlayer",
     "LooseAggressivePlayer", "ManiacPlayer",
     "AdaptiveHeuristicPlayer",
-    "ExpertOnlyPlayer", "SolverOraclePlayer",
+    "ExpertOnlyPlayer", "SolverOraclePlayer", "NitroPlayer",
 ]
