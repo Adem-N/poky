@@ -24,6 +24,7 @@ from typing import Dict, Optional
 from poky.abstraction.preflop import canonical_class, class_name
 from poky.engine import Action, Observation, PlayerStatus, Stage
 from poky.nitro import exploits as nitro_exploits
+from poky.nitro.postflop import postflop_decision
 from poky.nitro.profile_db import ProfileDB
 from poky.nitro.profiling import (
     ARCHETYPE_UNKNOWN, OpponentProfile,
@@ -76,7 +77,9 @@ class NitroPlayer(Player):
         fallback_postflop: Optional[Player] = None,
         payouts: Optional[list] = None,
         use_profiling: bool = True,
+        use_postflop_spr: bool = False,
     ):
+        self.use_postflop_spr = use_postflop_spr
         self.rng = random.Random(seed)
         self.use_icm = use_icm
         self.exploit_level = max(0.0, min(1.0, exploit_level))
@@ -118,6 +121,15 @@ class NitroPlayer(Player):
 
         if obs.stage != Stage.PREFLOP:
             self.postflop_decisions += 1
+            # N5.7 — SPR commit rules (opt-in via `use_postflop_spr` flag).
+            # Default disabled because empirically the rules hurt vs LAG
+            # (we fold to too many of their bets). Keep available for tuning.
+            if getattr(self, "use_postflop_spr", False):
+                decision = postflop_decision(obs, self.rng)
+                if decision is not None and decision in obs.legal_actions:
+                    action = decision
+                    self.action_dist[action] += 1
+                    return action
             action = self.fallback.act(obs)
             self.action_dist[action] += 1
             return action
